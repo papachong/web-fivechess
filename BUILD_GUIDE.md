@@ -26,6 +26,229 @@ npm run build
 
 ---
 
+## 🌐 Web 版本部署
+
+### 本地开发
+```bash
+# 启动开发服务器（支持热更新）
+npm run dev
+
+# 访问 http://localhost:5173
+```
+
+### 构建生产版本
+```bash
+# 构建优化后的生产版本
+npm run build
+
+# 输出目录: dist/
+# 包含：
+#   - index.html
+#   - assets/（CSS, JS, 图片等）
+```
+
+### 本地预览生产版本
+```bash
+# 预览构建后的生产版本
+npm run preview
+
+# 访问 http://localhost:4173
+```
+
+### 部署到 GitHub Pages
+
+1. **方式一：使用 GitHub Actions（推荐）**
+
+创建 `.github/workflows/deploy.yml`:
+```yaml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm install
+        
+      - name: Build
+        run: npm run build
+        
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+```
+
+2. **方式二：手动部署**
+```bash
+# 构建
+npm run build
+
+# 部署到 gh-pages 分支
+npm install -g gh-pages
+gh-pages -d dist
+
+# 在 GitHub 仓库设置中启用 GitHub Pages (选择 gh-pages 分支)
+```
+
+### 部署到 Vercel
+
+```bash
+# 安装 Vercel CLI
+npm install -g vercel
+
+# 登录
+vercel login
+
+# 部署
+vercel --prod
+
+# 或者：连接 GitHub 仓库后自动部署
+# 访问 https://vercel.com 连接仓库
+```
+
+在 `vercel.json` 中配置（可选）:
+```json
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite"
+}
+```
+
+### 部署到 Netlify
+
+```bash
+# 安装 Netlify CLI
+npm install -g netlify-cli
+
+# 登录
+netlify login
+
+# 初始化并部署
+netlify init
+netlify deploy --prod
+
+# 构建设置：
+# Build command: npm run build
+# Publish directory: dist
+```
+
+或使用 `netlify.toml`:
+```toml
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+```
+
+### 部署到自己的服务器
+
+```bash
+# 1. 构建项目
+npm run build
+
+# 2. 上传 dist/ 目录到服务器
+scp -r dist/* user@your-server:/var/www/html/
+
+# 3. 配置 Nginx（示例）
+server {
+    listen 80;
+    server_name your-domain.com;
+    root /var/www/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 缓存静态资源
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+
+# 4. 重启 Nginx
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+### 使用 Docker 部署
+
+创建 `Dockerfile`:
+```dockerfile
+# 构建阶段
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# 生产阶段
+FROM nginx:alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+创建 `nginx.conf`:
+```nginx
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+构建和运行：
+```bash
+# 构建镜像
+docker build -t miu-fivechess .
+
+# 运行容器
+docker run -d -p 8080:80 miu-fivechess
+
+# 访问 http://localhost:8080
+```
+
+### 性能优化建议
+
+- ✅ 启用 Gzip/Brotli 压缩
+- ✅ 配置 CDN 加速静态资源
+- ✅ 设置合理的缓存策略
+- ✅ 使用 HTTPS（Let's Encrypt 免费证书）
+- ✅ 配置 Service Worker（PWA）
+
+---
+
 ## 🖥️ 桌面应用 (Mac/Windows) - Electron
 
 ### 开发调试
@@ -92,15 +315,67 @@ npm run cap:open:android
 
 ---
 
-## 🍎 iOS 发布流程
+## 🍎 iOS 发布流程（支持 iPhone & iPad）
 
-1. 运行 `npm run cap:sync`
-2. 运行 `npm run cap:open:ios`
-3. 在 Xcode 中:
+### 环境准备
+```bash
+npm install
+npm run build
+npm run cap:sync
+cd ios/App
+brew install ruby@3.2
+sudo gem install cocoapods
+pod install  # 如需重新安装 CocoaPods 依赖
+open App.xcworkspace  # 务必用 xcworkspace 打开，不要用 xcodeproj
+```
+
+### 配置步骤
+1. 在 Xcode 中打开 App target
+2. **General 标签**:
+   - 验证 "Supported Destinations" 包含 iPhone 和 iPad
+   - Deployment Target: iOS 13.0+
+   - 检查 Bundle Identifier (`com.gallenma.fivechess`)
+
+3. **Signing & Capabilities 标签**:
    - 选择 Team (Apple Developer 账号)
-   - 设置 Bundle Identifier
-   - 选择真机或模拟器运行测试
-   - Product → Archive 打包上架
+   - 启用自动签名或手动配置 Provisioning Profile
+   
+4. **Build Settings 验证**:
+   - Product Name: `小miu仔五子棋`
+   - Version Number: 1.0.0（根据发布版本修改）
+   - Build Number: 1（每次发布递增）
+
+### 本地测试
+```bash
+# 连接 iPhone/iPad 或启动模拟器
+# Xcode 中：Product → Run (⌘R)
+# 验证：
+#  ✅ iPhone 上正常运行
+#  ✅ iPad 上正常运行（竖屏/横屏）
+#  ✅ UI 适配各屏幕尺寸
+```
+
+### App Store 发布
+1. **生成 Archive**:
+   - Product → Archive
+   - 等待构建完成
+
+2. **上传**:
+   - Archive 窗口 → "Distribute App"
+   - 选择 "App Store Connect"
+   - 按向导完成上传
+
+3. **App Store Connect 配置**:
+   - 填写应用描述、关键词、隐私政策
+   - **可用平台**：同时勾选 iPhone 和 iPad
+   - 准备应用图标 (1024×1024 PNG)
+   - 准备截图（iPhone 和 iPad 各需）
+   - 提交审核
+
+### 常见问题
+- **CocoaPods 错误**: 运行 `pod install` 并用 `.xcworkspace` 打开
+- **签名问题**: 确保 Team 已选择且 Bundle ID 唯一
+- **iPad 适配**: 已在 Info.plist 中配置，支持竖屏和横屏
 
 ---
 

@@ -614,6 +614,12 @@ function drawBoard(ctx: CanvasRenderingContext2D, state: GameState) {
     ctx.beginPath()
     ctx.arc(x, y, grid * 0.48, 0, Math.PI * 2)
     ctx.stroke()
+
+    // Center marker for last move (red dot)
+    ctx.fillStyle = '#ef4444'
+    ctx.beginPath()
+    ctx.arc(x, y, grid * 0.12, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   // highlight winning pieces with animation
@@ -664,12 +670,6 @@ function run() {
         <!-- Dropdown Menu -->
         <div id="menu-panel" class="absolute hidden bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-40 w-48 py-2 menu-dropdown" style="top: 100%; left: 0; margin-top: 4px;">
           <nav class="flex flex-col">
-            <button id="menu-reset" class="flex items-center gap-3 px-4 py-3 text-cyan-400 hover:bg-slate-700 transition font-semibold text-left">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              重新开始
-            </button>
             <button id="menu-save" class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -682,18 +682,13 @@ function run() {
               </svg>
               加载游戏
             </button>
+            <div class="border-t border-slate-600 my-1"></div>
             <button id="menu-settings" class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
               设置
-            </button>
-            <button id="menu-leaderboard" class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              排行榜
             </button>
             <div class="border-t border-slate-600 my-1"></div>
             <button id="menu-exit" class="flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-slate-700 transition text-left">
@@ -795,88 +790,98 @@ function run() {
 
         <!-- Top Control Bar with Menu, Undo, and Sound Toggle -->
         <div class="flex items-center justify-between gap-4 mb-6">
-          <!-- Menu Button Container -->
-          <div class="relative" id="menu-container">
-            <button id="menu-toggle" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center gap-2 font-semibold">
+          <!-- Left Section: Menu and Leaderboard -->
+          <div class="flex items-center gap-3">
+            <!-- Menu Button Container -->
+            <div class="relative" id="menu-container">
+              <button id="menu-toggle" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center justify-center" title="菜单" aria-label="菜单">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
+            
+            <!-- Leaderboard Button -->
+            <button id="leaderboard-toggle" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center justify-center" title="排行榜" aria-label="排行榜">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21h18M5 21v-8h4v8M9 21v-12h6v12M15 21v-6h4v6" />
               </svg>
-              菜单
             </button>
           </div>
           
           <div class="flex-1"></div>
           
-          <!-- Reset Button -->
-          <button id="top-reset" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center gap-2 font-semibold">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            重新开始
-          </button>
-          
-          <!-- Undo Button -->
-          <button id="top-undo" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center gap-2 font-semibold">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-            </svg>
-            悔棋
-          </button>
-          
-          <!-- Sound Toggle Button -->
-          <button id="top-sound" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center gap-2 font-semibold">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707A1 1 0 0113 2.343v17.314a1 1 0 01-1.707.707L5.586 15z" />
-            </svg>
-            <span id="sound-status">音效</span>
-          </button>
-          
-          <!-- Download Button Container -->
-          <div class="relative" id="download-container">
-            <button id="download-toggle" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center gap-2 font-semibold">
+          <!-- Right Section: Reset, Undo, Sound, Download -->
+          <div class="flex items-center gap-3">
+            <!-- Reset Button -->
+            <button id="top-reset" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center justify-center" title="重新开始" aria-label="重新开始">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              下载
             </button>
-            <!-- Download Dropdown -->
-            <div id="download-dropdown" class="hidden absolute bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 w-56 py-2 menu-dropdown" style="top: 100%; right: 0; margin-top: 4px;">
-              <div class="px-3 py-2 text-xs text-gray-400 border-b border-slate-600">选择平台下载</div>
-              <a href="./downloads/miu-fivechess-mac.dmg" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+            
+            <!-- Undo Button -->
+            <button id="top-undo" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center justify-center" title="悔棋" aria-label="悔棋">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+              </svg>
+            </button>
+            
+            <!-- Sound Toggle Button - Icon Only with Hover Effect -->
+            <button id="top-sound" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center justify-center sound-icon-btn" title="音效">
+              <svg class="w-5 h-5 sound-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707A1 1 0 0113 2.343v17.314a1 1 0 01-1.707.707L5.586 15z" />
+              </svg>
+            </button>
+            
+            <!-- Download Button Container - Icon Only -->
+            <div class="relative" id="download-container">
+              <button id="download-toggle" class="p-3 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition shadow-lg flex items-center justify-center" title="下载">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
-                macOS (DMG)
-              </a>
-              <a href="./downloads/miu-fivechess-win.exe" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M3 12V6.75l6-1.32v6.48L3 12zm6.74.08l8.26-.87V5.31l-8.26 1.09v5.68zM3 13l6 .09v6.81l-6-1.09V13zm6.74.09l8.26.91v6.5l-8.26-1.12V13.09z"/>
-                </svg>
-                Windows (EXE)
-              </a>
-              <div class="border-t border-slate-600 my-1"></div>
-              <a href="./downloads/miu-fivechess.ipa" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M15.5 1h-8C6.12 1 5 2.12 5 3.5v17C5 21.88 6.12 23 7.5 23h8c1.38 0 2.5-1.12 2.5-2.5v-17C18 2.12 16.88 1 15.5 1zm-4 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5-4H7V4h9v14z"/>
-                </svg>
-                iOS (IPA)
-              </a>
-              <a href="./downloads/miu-fivechess.apk" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24c-1.4-.59-2.96-.92-4.47-.92s-3.07.33-4.47.92L5.65 5.67c-.19-.29-.54-.38-.84-.22-.3.16-.42.54-.26.85L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25zm10 0c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25z"/>
-                </svg>
-                Android (APK)
-              </a>
+              </button>
+              <!-- Download Dropdown -->
+              <div id="download-dropdown" class="hidden absolute bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 w-56 py-2 menu-dropdown" style="top: 100%; right: 0; margin-top: 4px;">
+                <div class="px-3 py-2 text-xs text-gray-400 border-b border-slate-600">选择平台下载</div>
+                <a href="./downloads/miu-fivechess-mac.dmg" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                  </svg>
+                  macOS (DMG)
+                </a>
+                <a href="./downloads/miu-fivechess-win.exe" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 12V6.75l6-1.32v6.48L3 12zm6.74.08l8.26-.87V5.31l-8.26 1.09v5.68zM3 13l6 .09v6.81l-6-1.09V13zm6.74.09l8.26.91v6.5l-8.26-1.12V13.09z"/>
+                  </svg>
+                  Windows (EXE)
+                </a>
+                <div class="border-t border-slate-600 my-1"></div>
+                <a href="./downloads/miu-fivechess.ipa" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M15.5 1h-8C6.12 1 5 2.12 5 3.5v17C5 21.88 6.12 23 7.5 23h8c1.38 0 2.5-1.12 2.5-2.5v-17C18 2.12 16.88 1 15.5 1zm-4 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5-4H7V4h9v14z"/>
+                  </svg>
+                  iOS (IPA)
+                </a>
+                <a href="./downloads/miu-fivechess.apk" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
+                  <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24c-1.4-.59-2.96-.92-4.47-.92s-3.07.33-4.47.92L5.65 5.67c-.19-.29-.54-.38-.84-.22-.3.16-.42.54-.26.85L6.4 9.48C3.3 11.25 1.28 14.44 1 18h22c-.28-3.56-2.3-6.75-5.4-8.52zM7 15.25c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25zm10 0c-.69 0-1.25-.56-1.25-1.25s.56-1.25 1.25-1.25 1.25.56 1.25 1.25-.56 1.25-1.25 1.25z"/>
+                  </svg>
+                  Android (APK)
+                </a>
+              </div>
             </div>
           </div>
         </div>
 
         <!-- Players Info Bar -->
-        <div class="flex items-center justify-between gap-4 mb-6 px-4">
+        <div class="flex items-center justify-between gap-2 sm:gap-4 mb-6 px-2 sm:px-4">
           <!-- Player 1 -->
-          <div class="flex items-center gap-3 flex-1">
-            <div class="relative group">
-              <canvas id="player1-piece" width="48" height="48" class="w-12 h-12 rounded-full shadow-lg cursor-pointer"></canvas>
+          <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+            <div class="relative group flex-shrink-0">
+              <div id="player1-piece" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-lg cursor-pointer bg-slate-800 flex items-center justify-center overflow-hidden">
+                <canvas width="48" height="48" class="w-full h-full"></canvas>
+              </div>
               <div class="absolute bottom-0 right-0 bg-cyan-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition cursor-pointer" onclick="document.getElementById('player1-avatar-dropdown-btn').click()">
                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 19.5a1 1 0 010 2H5a4 4 0 01-4-4V7a4 4 0 014-4h14a4 4 0 014 4v10.5a1 1 0 110-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10.5a2 2 0 002 2h7z" /></svg>
               </div>
@@ -886,10 +891,10 @@ function run() {
               </div>
               <button id="player1-avatar-dropdown-btn" class="hidden" onclick="toggleAvatarDropdown(1)"></button>
             </div>
-            <div class="flex-1">
+            <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 mb-1">
-                <div class="text-xs text-gray-400">黑棋</div>
-                <svg id="player1-next-indicator" class="w-4 h-4 hidden indicator-light" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <div class="text-xs text-gray-400 whitespace-nowrap">黑棋</div>
+                <svg id="player1-next-indicator" class="w-4 h-4 hidden indicator-light flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <!-- Outer glow -->
                   <circle cx="12" cy="12" r="11" stroke="#FBBF24" stroke-width="1" opacity="0.3" class="indicator-glow" />
                   <!-- Light bulb body -->
@@ -900,8 +905,8 @@ function run() {
               </div>
               <div class="relative">
                 <div class="flex gap-1">
-                  <input id="player1-name" type="text" class="flex-1 px-2 py-1 bg-slate-700 text-white rounded border border-slate-600 hover:border-slate-500 focus:border-cyan-400 focus:outline-none text-sm font-semibold" placeholder="输入玩家名字" value="西门鸡翅" />
-                  <button id="player1-dropdown-btn" class="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded transition text-xs">▼</button>
+                  <input id="player1-name" type="text" class="flex-1 min-w-0 px-2 py-1 bg-slate-700 text-white rounded border border-slate-600 hover:border-slate-500 focus:border-cyan-400 focus:outline-none text-sm font-semibold truncate" placeholder="输入玩家名字" value="西门鸡翅" />
+                  <button id="player1-dropdown-btn" class="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded transition text-xs flex-shrink-0">▼</button>
                 </div>
                 <div id="player1-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
                   <!-- Options will be populated here -->
@@ -911,14 +916,16 @@ function run() {
           </div>
           
           <!-- VS indicator -->
-          <div class="text-center">
-            <div class="text-2xl text-cyan-400 font-bold">VS</div>
+          <div class="text-center flex-shrink-0">
+            <div class="text-xl sm:text-2xl text-cyan-400 font-bold">VS</div>
           </div>
           
           <!-- Player 2 -->
-          <div class="flex items-center gap-3 flex-1 flex-row-reverse">
-            <div class="relative group">
-              <canvas id="player2-piece" width="48" height="48" class="w-12 h-12 rounded-full shadow-lg cursor-pointer"></canvas>
+          <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 flex-row-reverse">
+            <div class="relative group flex-shrink-0">
+              <div id="player2-piece" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-lg cursor-pointer bg-slate-800 flex items-center justify-center overflow-hidden">
+                <canvas width="48" height="48" class="w-full h-full"></canvas>
+              </div>
               <div class="absolute bottom-0 left-0 bg-cyan-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition cursor-pointer" onclick="document.getElementById('player2-avatar-dropdown-btn').click()">
                 <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 19.5a1 1 0 010 2H5a4 4 0 01-4-4V7a4 4 0 014-4h14a4 4 0 014 4v10.5a1 1 0 110-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10.5a2 2 0 002 2h7z" /></svg>
               </div>
@@ -928,9 +935,9 @@ function run() {
               </div>
               <button id="player2-avatar-dropdown-btn" class="hidden" onclick="toggleAvatarDropdown(2)"></button>
             </div>
-            <div class="flex-1 text-right">
+            <div class="flex-1 min-w-0 text-right">
               <div class="flex items-center justify-end gap-2 mb-1">
-                <svg id="player2-next-indicator" class="w-4 h-4 hidden indicator-light" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <svg id="player2-next-indicator" class="w-4 h-4 hidden indicator-light flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <!-- Outer glow -->
                   <circle cx="12" cy="12" r="11" stroke="#FBBF24" stroke-width="1" opacity="0.3" class="indicator-glow" />
                   <!-- Light bulb body -->
@@ -938,12 +945,12 @@ function run() {
                   <!-- Inner bright core -->
                   <circle cx="12" cy="12" r="5" fill="#FCD34D" class="indicator-bright" />
                 </svg>
-                <div class="text-xs text-gray-400">白棋</div>
+                <div class="text-xs text-gray-400 whitespace-nowrap">白棋</div>
               </div>
               <div class="relative">
                 <div class="flex gap-1 flex-row-reverse">
-                  <input id="player2-name" type="text" class="flex-1 px-2 py-1 bg-slate-700 text-white rounded border border-slate-600 hover:border-slate-500 focus:border-cyan-400 focus:outline-none text-sm font-semibold text-right" placeholder="输入玩家名字" value="孤独牛排" />
-                  <button id="player2-dropdown-btn" class="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded transition text-xs">▼</button>
+                  <input id="player2-name" type="text" class="flex-1 min-w-0 px-2 py-1 bg-slate-700 text-white rounded border border-slate-600 hover:border-slate-500 focus:border-cyan-400 focus:outline-none text-sm font-semibold text-right truncate" placeholder="输入玩家名字" value="孤独牛排" />
+                  <button id="player2-dropdown-btn" class="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded transition text-xs flex-shrink-0">▼</button>
                 </div>
                 <div id="player2-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
                   <!-- Options will be populated here -->
@@ -981,8 +988,11 @@ function run() {
 
   // Draw player pieces in info bar
   function drawPlayerPieces() {
-    const p1Canvas = document.querySelector<HTMLCanvasElement>('#player1-piece')!
-    const p2Canvas = document.querySelector<HTMLCanvasElement>('#player2-piece')!
+    const p1Container = document.querySelector<HTMLDivElement>('#player1-piece')!
+    const p2Container = document.querySelector<HTMLDivElement>('#player2-piece')!
+    
+    const p1Canvas = p1Container.querySelector('canvas')!
+    const p2Canvas = p2Container.querySelector('canvas')!
     
     const ctx1 = p1Canvas.getContext('2d')!
     const ctx2 = p2Canvas.getContext('2d')!
@@ -991,77 +1001,40 @@ function run() {
     ctx1.clearRect(0, 0, 48, 48)
     ctx2.clearRect(0, 0, 48, 48)
     
-    // Helper function to draw image on canvas
-    const drawImageOnCanvas = (_canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, imageSrc: string, width: number = 48, height: number = 48) => {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-
-      const drawFallbackCircle = () => {
-        ctx.clearRect(0, 0, width, height)
-        ctx.beginPath()
-        ctx.arc(width / 2, height / 2, Math.min(width, height) / 2 - 2, 0, Math.PI * 2)
-        ctx.fillStyle = '#111827'
-        ctx.fill()
-        ctx.strokeStyle = '#22d3ee'
-        ctx.lineWidth = 2
-        ctx.stroke()
+    // Helper function to display avatar as img or draw piece on canvas
+    const displayAvatar = (container: HTMLDivElement, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, avatarSrc: string | null, playerNum: 1 | 2) => {
+      // Remove any existing img elements
+      const existingImg = container.querySelector('img')
+      if (existingImg) {
+        existingImg.remove()
       }
-
-      const cleanup = () => {
-        if (img.src.startsWith('blob:')) {
-          URL.revokeObjectURL(img.src)
+      
+      if (avatarSrc) {
+        // Hide canvas and show image
+        canvas.style.display = 'none'
+        const img = document.createElement('img')
+        img.src = avatarSrc
+        img.className = 'w-full h-full object-cover'
+        img.alt = `Player ${playerNum} avatar`
+        img.onerror = () => {
+          // Fallback to drawing piece on canvas if image fails
+          img.remove()
+          canvas.style.display = 'block'
+          drawPiece(ctx, 24, 24, 20, playerNum)
         }
+        container.appendChild(img)
+      } else {
+        // Show canvas and draw piece
+        canvas.style.display = 'block'
+        drawPiece(ctx, 24, 24, 20, playerNum)
       }
-
-      img.onload = () => {
-        ctx.clearRect(0, 0, width, height)
-        ctx.drawImage(img, 0, 0, width, height)
-        cleanup()
-      }
-
-      img.onerror = () => {
-        cleanup()
-        // Second attempt: try blob if data URL failed
-        if (imageSrc.includes('<svg') && !img.src.startsWith('blob:')) {
-          try {
-            const blob = new Blob([imageSrc], { type: 'image/svg+xml' })
-            const url = URL.createObjectURL(blob)
-            img.src = url
-            return
-          } catch (_) {
-            /* ignore and fall through */
-          }
-        }
-        drawFallbackCircle()
-      }
-
-      // First attempt: data URL for SVG, direct for others
-      if (imageSrc.includes('<svg')) {
-        try {
-          const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(imageSrc)
-          img.src = dataUrl
-          return
-        } catch (_) {
-          // will fall back in onerror
-        }
-      }
-
-      img.src = imageSrc
     }
     
-    // Draw player 1 with avatar or piece
-    if (settings.player1Avatar) {
-      drawImageOnCanvas(p1Canvas, ctx1, settings.player1Avatar)
-    } else {
-      drawPiece(ctx1, 24, 24, 20, 1)
-    }
+    // Display player 1 avatar or piece
+    displayAvatar(p1Container, p1Canvas, ctx1, settings.player1Avatar, 1)
     
-    // Draw player 2 with avatar or piece
-    if (settings.player2Avatar) {
-      drawImageOnCanvas(p2Canvas, ctx2, settings.player2Avatar)
-    } else {
-      drawPiece(ctx2, 24, 24, 20, 2)
-    }
+    // Display player 2 avatar or piece
+    displayAvatar(p2Container, p2Canvas, ctx2, settings.player2Avatar, 2)
   }
 
   // Show game end panel
@@ -1126,6 +1099,12 @@ function run() {
   const menuPanel = document.querySelector<HTMLDivElement>('#menu-panel')!
   const menuOverlay = document.querySelector<HTMLDivElement>('#menu-overlay')!
   const menuContainer = document.querySelector<HTMLDivElement>('#menu-container')!
+
+  // Initialize sound button state
+  const soundBtn = document.querySelector<HTMLButtonElement>('#top-sound')!
+  if (!settings.soundEnabled) {
+    soundBtn.classList.add('sound-disabled')
+  }
 
   // Move menu panel into menu container for proper positioning
   menuContainer.appendChild(menuPanel)
@@ -1352,8 +1331,12 @@ function run() {
   document.querySelector('#top-sound')?.addEventListener('click', () => {
     settings.soundEnabled = !settings.soundEnabled
     localStorage.setItem('fivechess-settings', JSON.stringify(settings))
-    const statusEl = document.querySelector('#sound-status')!
-    statusEl.textContent = settings.soundEnabled ? '音效' : '无音效'
+    const soundBtn = document.querySelector('#top-sound') as HTMLButtonElement
+    if (settings.soundEnabled) {
+      soundBtn.classList.remove('sound-disabled')
+    } else {
+      soundBtn.classList.add('sound-disabled')
+    }
   })
 
   document.querySelector('#menu-exit')?.addEventListener('click', () => {
@@ -1555,6 +1538,10 @@ function run() {
 
   document.querySelector('#menu-leaderboard')?.addEventListener('click', () => {
     toggleMenu()
+    showLeaderboard()
+  })
+
+  document.querySelector('#leaderboard-toggle')?.addEventListener('click', () => {
     showLeaderboard()
   })
 
@@ -1775,33 +1762,33 @@ function run() {
   const cartoonAvatars: { name: string; src: string; isChessPiece?: boolean }[] = [
     {
       name: '黑棋子',
-      src: './avatars/black-piece.svg',
+      src: new URL('../public/avatars/black-piece.svg', import.meta.url).href,
       isChessPiece: true
     },
     {
       name: '白棋子',
-      src: './avatars/white-piece.svg',
+      src: new URL('../public/avatars/white-piece.svg', import.meta.url).href,
       isChessPiece: true
     },
     {
       name: '朱迪·兔',
-      src: './avatars/judy.svg'
+      src: new URL('../public/avatars/judy.svg', import.meta.url).href
     },
     {
       name: '尼克·狐',
-      src: './avatars/nick.svg'
+      src: new URL('../public/avatars/nick.svg', import.meta.url).href
     },
     {
       name: '闪电·树懒',
-      src: './avatars/flash.svg'
+      src: new URL('../public/avatars/flash.svg', import.meta.url).href
     },
     {
       name: '牛局长',
-      src: './avatars/bogo.svg'
+      src: new URL('../public/avatars/bogo.svg', import.meta.url).href
     },
     {
       name: '绵羊副市长',
-      src: './avatars/bellwether.svg'
+      src: new URL('../public/avatars/bellwether.svg', import.meta.url).href
     }
   ]
   
@@ -1884,27 +1871,22 @@ function run() {
     const avatar = cartoonAvatars[avatarIndex]
     const avatarSrc = avatar.src
     
-    // If selecting a chess piece, clear the avatar to use default piece rendering
-    if (avatar.isChessPiece) {
-      if (playerNum === 1) {
-        settings.player1Avatar = ''
-      } else {
-        settings.player2Avatar = ''
-      }
+    // Keep chess piece selections as explicit avatars so the change is visible
+    if (playerNum === 1) {
+      settings.player1Avatar = avatarSrc
     } else {
-      if (playerNum === 1) {
-        settings.player1Avatar = avatarSrc
-      } else {
-        settings.player2Avatar = avatarSrc
-      }
+      settings.player2Avatar = avatarSrc
     }
     
-    localStorage.setItem('fivechess-settings', JSON.stringify(settings))
+    // Save settings properly (convert Map to Object for JSON serialization)
+    const settingsToSave = {
+      ...settings,
+      playerRecords: Object.fromEntries(settings.playerRecords)
+    }
+    localStorage.setItem('fivechess-settings', JSON.stringify(settingsToSave))
     
-    // Use requestAnimationFrame to ensure DOM update
-    requestAnimationFrame(() => {
-      drawPlayerPieces()
-    })
+    // Immediately redraw player pieces
+    drawPlayerPieces()
     
     // Close dropdown
     const dropdownId = playerNum === 1 ? 'player1-avatar-dropdown' : 'player2-avatar-dropdown'

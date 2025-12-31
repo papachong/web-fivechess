@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>棋子样式对比 - 小miu仔五子棋</title>
+  <style>
+    :root {
+      color: #e5e7eb;
+      background: #0b1221;
+      font-family: 'SF Pro Display', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'PingFang SC', system-ui, sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: radial-gradient(circle at 20% 20%, #0ea5e91f 0 30%, transparent 30%),
+                  radial-gradient(circle at 80% 30%, #a855f71a 0 26%, transparent 26%),
+                  #0b1221;
+    }
+    h1 { margin: 0 0 16px; font-size: 22px; }
+    p { margin: 4px 0 24px; color: #94a3b8; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .card {
+      background: #0f172a;
+      border: 1px solid #1f2a44;
+      border-radius: 14px;
+      padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    .card h2 { margin: 0 0 8px; font-size: 16px; }
+    .card small { color: #94a3b8; }
+    .canvas-wrap {
+      margin-top: 12px;
+      background: linear-gradient(45deg, #111827 25%, #0f172a 25%, #0f172a 50%, #111827 50%, #111827 75%, #0f172a 75%, #0f172a 100%);
+      background-size: 24px 24px;
+      border-radius: 10px;
+      padding: 12px;
+      border: 1px solid #1f2937;
+    }
+    canvas { width: 100%; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <h1>棋子样式对比</h1>
+  <p>四种风格：半透明玻璃、磨砂石、扁平高对比、霓虹高亮。每张卡片展示黑白棋各一个。</p>
+  <div class="grid" id="grid"></div>
+
+  <script>
+    const styles = [
+      {
+        key: 'glass',
+        title: '半透明玻璃',
+        note: '内发光 + 细描边 + 柔影',
+        draw: drawGlass
+      },
+      {
+        key: 'stone',
+        title: '磨砂石',
+        note: '低饱和渐变 + 噪点 + 体积光',
+        draw: drawStone
+      },
+      {
+        key: 'flat',
+        title: '扁平高对比',
+        note: '双描边 + 清晰可辨 (无障碍友好)',
+        draw: drawFlat
+      },
+      {
+        key: 'neon',
+        title: '霓虹高亮',
+        note: '荧光外发光 + 高对比',
+        draw: drawNeon
+      }
+    ]
+
+    const grid = document.getElementById('grid')
+    styles.forEach(style => {
+      const card = document.createElement('div')
+      card.className = 'card'
+      card.innerHTML = `<h2>${style.title}</h2><small>${style.note}</small><div class="canvas-wrap"><canvas width="220" height="110" id="c-${style.key}"></canvas></div>`
+      grid.appendChild(card)
+      const canvas = card.querySelector('canvas')
+      const ctx = canvas.getContext('2d')
+      renderPair(ctx, style.draw)
+    })
+
+    function renderPair(ctx, drawFn) {
+      ctx.clearRect(0,0,220,110)
+      drawFn(ctx, 70, 55, 36, 1)
+      drawFn(ctx, 150, 55, 36, 2)
+    }
+
+    function drawGlass(ctx, x, y, r, player) {
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.25)'
+      ctx.shadowBlur = 12
+      ctx.shadowOffsetY = 6
+      const grad = ctx.createRadialGradient(x - r/3, y - r/3, r/6, x, y, r)
+      if (player === 1) {
+        grad.addColorStop(0, 'rgba(120,120,130,0.9)')
+        grad.addColorStop(0.5, 'rgba(45,45,55,0.85)')
+        grad.addColorStop(1, 'rgba(10,10,16,0.85)')
+      } else {
+        grad.addColorStop(0, 'rgba(255,255,255,0.95)')
+        grad.addColorStop(0.45, 'rgba(230,235,240,0.9)')
+        grad.addColorStop(1, 'rgba(200,210,220,0.8)')
+      }
+      ctx.fillStyle = grad
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill()
+      const rim = ctx.createRadialGradient(x,y,r-3,x,y,r+1)
+      rim.addColorStop(0,'rgba(255,255,255,0)')
+      rim.addColorStop(1,'rgba(255,255,255,0.6)')
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)'
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.fillStyle = rim
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill()
+      const hl = ctx.createRadialGradient(x - r/2, y - r/2, 1, x - r/2, y - r/2, r/1.6)
+      hl.addColorStop(0,'rgba(255,255,255,0.8)')
+      hl.addColorStop(1,'rgba(255,255,255,0)')
+      ctx.fillStyle = hl
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill()
+      ctx.restore()
+    }
+
+    function drawStone(ctx, x, y, r, player) {
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.35)'
+      ctx.shadowBlur = 14
+      ctx.shadowOffsetY = 8
+      const body = ctx.createRadialGradient(x - r/4, y - r/4, r/8, x, y, r)
+      if (player === 1) {
+        body.addColorStop(0,'#4b5563')
+        body.addColorStop(0.6,'#1f2937')
+        body.addColorStop(1,'#0b1221')
+      } else {
+        body.addColorStop(0,'#ffffff')
+        body.addColorStop(0.5,'#e5e7eb')
+        body.addColorStop(1,'#cbd5e1')
+      }
+      ctx.fillStyle = body
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill()
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)'
+      ctx.lineWidth = 1.5
+      ctx.stroke()
+      const noise = ctx.createRadialGradient(x,y,0,x,y,r)
+      noise.addColorStop(0,'rgba(255,255,255,0.04)')
+      noise.addColorStop(1,'rgba(255,255,255,0)')
+      ctx.fillStyle = noise
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill()
+      const rim = ctx.createRadialGradient(x,y,r-3,x,y,r+2)
+      rim.addColorStop(0,'rgba(255,255,255,0)')
+      rim.addColorStop(1,'rgba(255,255,255,0.18)')
+      ctx.fillStyle = rim
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill()
+      ctx.restore()
+    }
+
+    function drawFlat(ctx, x, y, r, player) {
+      ctx.save()
+      ctx.shadowColor = 'rgba(0,0,0,0.25)'
+      ctx.shadowBlur = 10
+      ctx.shadowOffsetY = 5
+      ctx.fillStyle = player === 1 ? '#111827' : '#f8fafc'
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill()
+      ctx.lineWidth = 2
+      ctx.strokeStyle = player === 1 ? '#e5e7eb' : '#0f172a'
+      ctx.stroke()
+      ctx.lineWidth = 4
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)'
+      ctx.beginPath(); ctx.arc(x,y,r-2,0,Math.PI*2); ctx.stroke()
+      ctx.restore()
+    }
+
+    function drawNeon(ctx, x, y, r, player) {
+      ctx.save()
+      ctx.shadowColor = player === 1 ? 'rgba(59,130,246,0.55)' : 'rgba(16,185,129,0.55)'
+      ctx.shadowBlur = 20
+      ctx.shadowOffsetY = 0
+      ctx.fillStyle = player === 1 ? '#0f172a' : '#0f172a'
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill()
+      const inner = ctx.createRadialGradient(x,y,0,x,y,r)
+      if (player === 1) {
+        inner.addColorStop(0,'rgba(59,130,246,0.9)')
+        inner.addColorStop(1,'rgba(59,130,246,0.15)')
+      } else {
+        inner.addColorStop(0,'rgba(16,185,129,0.9)')
+        inner.addColorStop(1,'rgba(16,185,129,0.15)')
+      }
+      ctx.fillStyle = inner
+      ctx.beginPath(); ctx.arc(x,y,r-3,0,Math.PI*2); ctx.fill()
+      ctx.lineWidth = 2
+      ctx.strokeStyle = player === 1 ? 'rgba(59,130,246,0.8)' : 'rgba(16,185,129,0.8)'
+      ctx.beginPath(); ctx.arc(x,y,r-1,0,Math.PI*2); ctx.stroke()
+      ctx.restore()
+    }
+  </script>
+</body>
+</html>

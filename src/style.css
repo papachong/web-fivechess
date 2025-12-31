@@ -284,3 +284,85 @@ input[type='range']::-moz-range-thumb {
   border-right: 5px solid transparent;
   border-bottom: 5px solid #1e293b;
 }
+
+/* Sound Icon Button Interaction Styles */
+.sound-icon-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.sound-icon-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.4) 0%, transparent 70%);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.sound-icon-btn:hover {
+  animation: soundHover 0.6s ease-out infinite;
+}
+
+.sound-icon-btn:active {
+  animation: soundClick 0.3s ease-out;
+}
+
+@keyframes soundHover {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4),
+                inset 0 0 8px rgba(34, 197, 94, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0.2),
+                inset 0 0 8px rgba(34, 197, 94, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0),
+                inset 0 0 8px rgba(34, 197, 94, 0.1);
+  }
+}
+
+@keyframes soundClick {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6);
+  }
+  50% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.2);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+/* Sound icon color when disabled */
+.sound-icon-btn.sound-disabled .sound-icon {
+  color: #ef4444;
+  opacity: 0.7;
+}
+
+.sound-icon-btn.sound-disabled:hover {
+  animation: soundHoverDisabled 0.6s ease-out infinite;
+}
+
+@keyframes soundHoverDisabled {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4),
+                inset 0 0 8px rgba(239, 68, 68, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.2),
+                inset 0 0 8px rgba(239, 68, 68, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0),
+                inset 0 0 8px rgba(239, 68, 68, 0.1);
+  }
+}
