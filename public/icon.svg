@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e293b"/>
+      <stop offset="100%" style="stop-color:#0f172a"/>
+    </linearGradient>
+    <linearGradient id="boardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#c7d9a8"/>
+      <stop offset="100%" style="stop-color:#a8c686"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="url(#bgGrad)"/>
+  
+  <!-- Board -->
+  <rect x="80" y="80" width="352" height="352" rx="20" fill="url(#boardGrad)"/>
+  
+  <!-- Grid lines -->
+  <g stroke="#6b8c3a" stroke-width="2">
+    <!-- Vertical -->
+    <line x1="136" y1="136" x2="136" y2="376"/>
+    <line x1="192" y1="136" x2="192" y2="376"/>
+    <line x1="256" y1="136" x2="256" y2="376"/>
+    <line x1="320" y1="136" x2="320" y2="376"/>
+    <line x1="376" y1="136" x2="376" y2="376"/>
+    <!-- Horizontal -->
+    <line x1="136" y1="136" x2="376" y2="136"/>
+    <line x1="136" y1="196" x2="376" y2="196"/>
+    <line x1="136" y1="256" x2="376" y2="256"/>
+    <line x1="136" y1="316" x2="376" y2="316"/>
+    <line x1="136" y1="376" x2="376" y2="376"/>
+  </g>
+  
+  <!-- Black pieces -->
+  <circle cx="192" cy="196" r="24" fill="#2c3e50"/>
+  <circle cx="256" cy="256" r="24" fill="#2c3e50"/>
+  <circle cx="320" cy="316" r="24" fill="#2c3e50"/>
+  
+  <!-- White pieces -->
+  <circle cx="256" cy="196" r="24" fill="#f0f0f0" stroke="#d0d0d0" stroke-width="2"/>
+  <circle cx="192" cy="256" r="24" fill="#f0f0f0" stroke="#d0d0d0" stroke-width="2"/>
+  
+  <!-- Highlight -->
+  <circle cx="192" cy="196" r="10" fill="#4a5f7f" opacity="0.5"/>
+  <circle cx="256" cy="196" r="10" fill="#ffffff" opacity="0.5"/>
+  
+  <!-- Title accent -->
+  <text x="256" y="470" text-anchor="middle" font-family="Arial, sans-serif" font-size="36" font-weight="bold" fill="#22d3ee">五子棋</text>
+</svg>
