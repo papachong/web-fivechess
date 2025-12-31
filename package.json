@@ -8,12 +8,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:electron": "tsc && ELECTRON_BUILD=true vite build",
     "preview": "vite preview",
     "deploy": "bash scripts/deploy.sh",
-    "electron:dev": "npm run build && electron .",
-    "electron:build": "npm run build && electron-builder",
-    "electron:build:mac": "npm run build && electron-builder --mac",
-    "electron:build:win": "npm run build && electron-builder --win",
+    "generate:icons": "bash scripts/generate-icons.sh",
+    "electron:dev": "npm run build:electron && electron .",
+    "electron:build": "npm run build:electron && electron-builder",
+    "electron:build:mac": "npm run build:electron && electron-builder --mac",
+    "electron:build:win": "npm run build:electron && electron-builder --win",
     "cap:init": "cap init '小miu仔五子棋' com.gallenma.fivechess --web-dir dist",
     "cap:add:ios": "cap add ios",
     "cap:add:android": "cap add android",
@@ -30,6 +32,8 @@
     },
     "files": [
       "dist/**/*",
+      "public/avatars/**/*",
+      "public/icon.png",
       "electron/**/*"
     ],
     "mac": {

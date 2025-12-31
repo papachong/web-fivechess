@@ -1,5 +1,7 @@
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron')
 const path = require('path')
+// Check if app is packaged - when bundled, app.isPackaged is true
+const isDev = !app.isPackaged
 
 let mainWindow
 let isQuitting = false
@@ -12,6 +14,14 @@ ipcMain.on('quit-app', (event) => {
   }
 })
 
+function getAssetPath(asset) {
+  if (isDev) {
+    return path.join(__dirname, '../public', asset)
+  }
+  // 在打包后，资源在 app.asar 内的 dist 目录
+  return path.join(__dirname, '../dist', asset)
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 800,
@@ -23,14 +33,21 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs')
     },
-    icon: path.join(__dirname, '../public/icon.png'),
+    icon: isDev ? path.join(__dirname, '../public/icon.png') : path.join(__dirname, '../dist/icon.png'),
     title: '小miu仔五子棋',
     backgroundColor: '#0f172a',
     show: false
   })
 
-  // 加载打包后的文件
+  // 加载HTML文件
+  // 在开发和生产环境中，dist 目录都在相同位置
   const indexPath = path.join(__dirname, '../dist/index.html')
+  
+  console.log('Loading index.html from:', indexPath)
+  console.log('isDev:', isDev)
+  console.log('app.isPackaged:', app.isPackaged)
+  console.log('__dirname:', __dirname)
+  
   mainWindow.loadFile(indexPath)
 
   // 窗口准备好后再显示，避免闪烁

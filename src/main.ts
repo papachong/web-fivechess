@@ -44,6 +44,19 @@ const infoBar = 15
 const width = boardSize * grid + margin * 2
 const height = boardSize * grid + margin * 2 + infoBar
 
+type FireworkParticle = {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  life: number
+  ttl: number
+  color: string
+  trail: Array<{ x: number; y: number }>
+}
+
+const fireworkPalette = ['#f43f5e', '#f97316', '#facc15', '#4ade80', '#34d399', '#38bdf8', '#818cf8', '#c084fc']
+
 let animatingPieces: Map<string, number> = new Map()
 let settings: Settings = { 
   soundEnabled: true, 
@@ -58,7 +71,7 @@ let settings: Settings = {
 }
 let hoverPosition: { r: number; c: number } | null = null
 let winAnimationTime = 0
-let fireworks: Array<{ x: number; y: number; vx: number; vy: number; life: number }> = []
+let fireworks: FireworkParticle[] = []
 
 // Load settings from localStorage
 function loadSettings() {
@@ -171,47 +184,178 @@ function updatePlayerRecord(playerName: string, result: 'win' | 'loss' | 'draw')
 }
 
 // Create fireworks effect
-function createFireworks(x: number, y: number, count: number = 30) {
+function createFireworks(x: number, y: number, count: number = 36) {
   for (let i = 0; i < count; i++) {
-    const angle = (Math.PI * 2 * i) / count
-    const speed = 2 + Math.random() * 3
+    const angle = (Math.PI * 2 * i) / count + (Math.random() * 0.5 - 0.25)
+    const speed = 1.6 + Math.random() * 4.2
+    const ttl = 1.8 + Math.random() * 0.9
     fireworks.push({
       x,
       y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      life: 1
+      life: ttl,
+      ttl,
+      color: fireworkPalette[Math.floor(Math.random() * fireworkPalette.length)],
+      trail: []
     })
   }
 }
 
 // Update and draw fireworks
 function drawFireworks(ctx: CanvasRenderingContext2D) {
+  if (!fireworks.length) return
   const toRemove: number[] = []
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
   for (let i = 0; i < fireworks.length; i++) {
     const particle = fireworks[i]
+    particle.trail.unshift({ x: particle.x, y: particle.y })
+    if (particle.trail.length > 7) {
+      particle.trail.pop()
+    }
+
     particle.x += particle.vx
     particle.y += particle.vy
-    particle.vy += 0.15 // gravity
-    particle.life -= 0.02
-    
-    if (particle.life <= 0) {
+    particle.vy += 0.05
+    particle.life -= 0.016
+
+    const progress = particle.life / particle.ttl
+    if (progress <= 0) {
       toRemove.push(i)
       continue
     }
-    
-    const colors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24']
-    const color = colors[Math.floor(Math.random() * colors.length)]
-    ctx.fillStyle = color
-    ctx.globalAlpha = particle.life
+
+    const { r, g, b } = hexToRgb(particle.color)
+    ctx.globalAlpha = Math.max(progress, 0)
+
+    // Draw trailing light streak
+    if (particle.trail.length > 1) {
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${Math.min(0.7, progress + 0.2)})`
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(particle.trail[0].x, particle.trail[0].y)
+      for (let t = 1; t < particle.trail.length; t++) {
+        ctx.lineTo(particle.trail[t].x, particle.trail[t].y)
+      }
+      ctx.stroke()
+    }
+
+    // Draw glowing core
+    const radius = 2 + (1 - progress) * 3
+    const gradient = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, radius * 3)
+    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.9)`)
+    gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`)
+    ctx.fillStyle = gradient
     ctx.beginPath()
-    ctx.arc(particle.x, particle.y, 3, 0, Math.PI * 2)
+    ctx.arc(particle.x, particle.y, radius * 3, 0, Math.PI * 2)
     ctx.fill()
-    ctx.globalAlpha = 1
+
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.9)`
+    ctx.beginPath()
+    ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2)
+    ctx.fill()
   }
-  // Remove dead particles
+  ctx.restore()
+
   for (let i = toRemove.length - 1; i >= 0; i--) {
     fireworks.splice(toRemove[i], 1)
+  }
+}
+
+function hexToRgb(hex: string) {
+  let normalized = hex.replace('#', '')
+  if (normalized.length === 3) {
+    normalized = normalized.split('').map((c) => c + c).join('')
+  }
+  const bigint = parseInt(normalized, 16)
+  return {
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255
+  }
+}
+
+const celebrationColors = ['#f97316', '#facc15', '#a3e635', '#34d399', '#60a5fa', '#c084fc']
+type CelebrationRoutine = (winnerName: string) => void
+
+function triggerConfettiBurst() {
+  const existing = document.querySelector<HTMLDivElement>('#confetti-layer')
+  if (existing) {
+    existing.remove()
+  }
+  const layer = document.createElement('div')
+  layer.id = 'confetti-layer'
+  layer.className = 'confetti-layer'
+  for (let i = 0; i < 36; i++) {
+    const piece = document.createElement('span')
+    piece.className = 'confetti-piece'
+    piece.style.left = `${Math.random() * 100}%`
+    piece.style.animationDelay = `${Math.random() * 0.4}s`
+    piece.style.backgroundColor = celebrationColors[i % celebrationColors.length]
+    piece.style.width = `${6 + Math.random() * 6}px`
+    piece.style.height = `${10 + Math.random() * 10}px`
+    piece.style.transform = `rotate(${Math.random() * 360}deg)`
+    layer.appendChild(piece)
+  }
+  document.body.appendChild(layer)
+  setTimeout(() => layer.remove(), 4500)
+}
+
+function showChampionBanner(winnerName: string) {
+  let banner = document.querySelector<HTMLDivElement>('#champion-banner')
+  if (!banner) {
+    banner = document.createElement('div')
+    banner.id = 'champion-banner'
+    banner.className = 'champion-banner'
+    document.body.appendChild(banner)
+  }
+  banner.textContent = `🏆 ${winnerName} 获胜！`
+  banner.classList.remove('banner-hide')
+  banner.classList.add('banner-show')
+  setTimeout(() => {
+    banner?.classList.add('banner-hide')
+    setTimeout(() => banner?.remove(), 600)
+  }, 3800)
+}
+
+function triggerSpotlightBurst() {
+  const existing = document.querySelector<HTMLDivElement>('#spotlight-overlay')
+  if (existing) {
+    existing.remove()
+  }
+  const overlay = document.createElement('div')
+  overlay.id = 'spotlight-overlay'
+  overlay.className = 'spotlight-overlay'
+  document.body.appendChild(overlay)
+  setTimeout(() => overlay.remove(), 3200)
+}
+
+function launchFireworkShow() {
+  const bursts = 4 + Math.floor(Math.random() * 3)
+  for (let i = 0; i < bursts; i++) {
+    setTimeout(() => {
+      const x = margin + Math.random() * (width - margin * 2)
+      const y = margin + Math.random() * (height - margin * 2)
+      createFireworks(x, y, 45 + Math.floor(Math.random() * 30))
+    }, i * 350)
+  }
+}
+
+const celebrationRoutines: CelebrationRoutine[] = [
+  () => launchFireworkShow(),
+  () => triggerConfettiBurst(),
+  (winnerName) => showChampionBanner(winnerName),
+  () => triggerSpotlightBurst()
+]
+
+function runRandomCelebrations(winnerName: string) {
+  const pool = [...celebrationRoutines]
+  const count = Math.min(pool.length, 2 + Math.floor(Math.random() * 2))
+  for (let i = 0; i < count; i++) {
+    const choiceIndex = Math.floor(Math.random() * pool.length)
+    const routine = pool.splice(choiceIndex, 1)[0]
+    routine(winnerName)
   }
 }
 
@@ -1069,8 +1213,7 @@ function run() {
       // Update scores for win/loss
       updatePlayerRecord(winnerName, 'win')
       updatePlayerRecord(loserName, 'loss')
-      // Create fireworks effect at canvas center (use canvas coordinate system)
-      createFireworks(width / 2, height / 2, 50)
+      runRandomCelebrations(winnerName)
     }
     
     // Show panel

@@ -366,3 +366,109 @@ input[type='range']::-moz-range-thumb {
                 inset 0 0 8px rgba(239, 68, 68, 0.1);
   }
 }
+
+.confetti-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 120;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -10%;
+  border-radius: 2px;
+  animation: confettiFall 4.2s ease-in forwards;
+  opacity: 0.9;
+}
+
+@keyframes confettiFall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 0.7;
+  }
+  45% {
+    transform: translate3d(-20px, 55vh, 0) rotate(200deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(50px, 120vh, 0) rotate(500deg);
+    opacity: 0;
+  }
+}
+
+.champion-banner {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(125, 211, 252, 0.6);
+  border-radius: 999px;
+  padding: 12px 28px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #e0f2fe;
+  backdrop-filter: blur(10px);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 30px rgba(14, 165, 233, 0.2);
+  z-index: 130;
+  pointer-events: none;
+}
+
+.champion-banner.banner-show {
+  animation: bannerSlide 0.6s ease-out forwards;
+}
+
+.champion-banner.banner-hide {
+  animation: bannerExit 0.5s ease-in forwards;
+}
+
+@keyframes bannerSlide {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes bannerExit {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+}
+
+.spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 30%, rgba(251, 191, 36, 0.35), transparent 55%),
+    radial-gradient(circle at 20% 70%, rgba(59, 130, 246, 0.25), transparent 50%);
+  mix-blend-mode: screen;
+  animation: spotlightPulse 3s ease-out forwards;
+  z-index: 110;
+}
+
+@keyframes spotlightPulse {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+}

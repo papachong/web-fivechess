@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  base: '/fivechess/',
+  base: process.env.ELECTRON_BUILD ? './' : '/fivechess/',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

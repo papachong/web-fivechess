@@ -251,14 +251,29 @@ docker run -d -p 8080:80 miu-fivechess
 
 ## 🖥️ 桌面应用 (Mac/Windows) - Electron
 
+### 环境准备
+应用图标需要预先生成。如果是首次打包，需要：
+
+```bash
+# 1. 安装 ImageMagick（用于图标转换）
+brew install imagemagick
+
+# 2. 生成应用图标（从 SVG 转换为 ICNS 和 ICO）
+npm run generate:icons
+
+# 生成的文件：
+#   - public/icon.icns (Mac 应用图标)
+#   - public/icon.ico (Windows 应用图标)
+```
+
 ### 开发调试
 ```bash
 npm run electron:dev
 ```
 
-### 打包 Mac 应用
+### 打包 Mac 应用（不签名）
 ```bash
-npm run electron:build:mac
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run electron:build:mac
 ```
 输出: `release/` 目录下的 `.dmg` 和 `.zip` 文件
 
@@ -406,9 +421,24 @@ open App.xcworkspace  # 务必用 xcworkspace 打开，不要用 xcodeproj
 
 需要准备以下图标文件放在 `public/` 目录:
 
-- `icon.png` - 512x512 PNG (通用)
-- `icon.icns` - Mac 图标
-- `icon.ico` - Windows 图标
+### 源图标
+- `public/icon.svg` - 源 SVG 图标（512x512+ 推荐）
+
+### 生成图标
+使用 `npm run generate:icons` 自动转换：
+
+- `public/icon.icns` - Mac 应用图标（Electron/macOS）
+- `public/icon.ico` - Windows 应用图标（Electron/Windows）
+
+### 自定义图标
+1. 编辑 `public/icon.svg`（确保 viewBox 正确）
+2. 运行 `npm run generate:icons` 重新生成
+3. 重新打包应用
+
+**依赖：** ImageMagick
+```bash
+brew install imagemagick
+```
 
 iOS/Android 图标在各自的原生项目中配置。
 
