@@ -1108,6 +1108,26 @@ function run() {
         <div class="bg-slate-800 rounded-xl shadow-2xl border border-slate-700 overflow-hidden">
           <canvas id="board" width="${width}" height="${height}" class="w-full h-auto block bg-slate-900"></canvas>
         </div>
+
+        <!-- Footer Information -->
+        <div class="mt-8 text-center text-xs text-gray-400 border-t border-slate-700 pt-6 space-y-3">
+          <!-- Company -->
+          <div class="flex items-center justify-center gap-2">
+            <span>儒虎智能科技（北京）有限公司</span>
+          </div>
+          <!-- ICP and Police Registration -->
+          <div class="space-y-1">
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3 flex-wrap">
+              <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-cyan-400 transition duration-200">京ICP备2025154066号-1</a>
+              <span class="hidden sm:inline text-gray-600">|</span>
+              <div class="flex items-center gap-1">
+                <a href="https://beian.mps.gov.cn/#/query/webSearch?code=11011402055127" target="_blank" rel="noopener noreferrer" class="text-gray-400 hover:text-cyan-400 transition duration-200">京公网备11011402055127号</a>
+                <img src="./police-badge.png" alt="京公网安备" class="h-3 sm:h-4">
+              </div>
+            </div>
+            <div class="text-gray-500">Copyright © 2024-2025 Ruhoo AI. All Rights Reserved. 儒虎智能科技 版权所有</div>
+          </div>
+        </div>
       </div>
     </div>
   `
