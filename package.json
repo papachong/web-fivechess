@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "build:electron": "tsc && ELECTRON_BUILD=true vite build",
+    "build:capacitor": "tsc && CAPACITOR_BUILD=true vite build",
     "preview": "vite preview",
     "deploy": "bash scripts/deploy.sh",
     "generate:icons": "bash scripts/generate-icons.sh",
@@ -19,9 +20,10 @@
     "cap:init": "cap init '小miu仔五子棋' com.gallenma.fivechess --web-dir dist",
     "cap:add:ios": "cap add ios",
     "cap:add:android": "cap add android",
-    "cap:sync": "npm run build && cap sync",
+    "cap:sync": "npm run build:capacitor && cap sync",
     "cap:open:ios": "cap open ios",
-    "cap:open:android": "cap open android"
+    "cap:open:android": "cap open android",
+    "cap:build:android": "npm run cap:sync && cd android && ./gradlew assembleRelease && cd .."
   },
   "main": "electron/main.cjs",
   "build": {

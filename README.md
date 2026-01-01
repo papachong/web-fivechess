@@ -104,10 +104,13 @@ npm run cap:open:ios
 
 #### Android（需要 Android Studio）
 ```bash
-npm run build
+# 方法1：命令行构建（推荐）
+npm run cap:build:android
+# 构建产物：android/app/release/app-release.apk
+
+# 方法2：Android Studio 图形界面
 npm run cap:sync
 npm run cap:open:android
-
 # 在 Android Studio 中 Build > Generate Signed Bundle/APK
 ```
 
@@ -251,6 +254,31 @@ sudo systemctl restart nginx
 ```bash
 docker build -t miu-fivechess .
 docker run -d -p 80:80 miu-fivechess
+```
+
+#### 自动部署脚本（推荐）
+```bash
+# 一键部署 Web 版 + 所有平台安装包到服务器
+npm run deploy
+
+# 此脚本会自动：
+# 1. 构建 Web 版本并部署到服务器
+# 2. 打包并推送以下安装包到下载中心：
+#    - miu-fivechess-mac.dmg.zip (Mac)
+#    - miu-fivechess-win.exe.zip (Windows)  
+#    - miu-fivechess.apk (Android，从 android/app/release/)
+#    - miu-fivechess.ipa (iOS)
+# 3. 设置正确的文件权限
+# 4. 清理临时文件
+```
+
+配置服务器信息（编辑 `scripts/deploy.sh`）：
+```bash
+REMOTE_HOST="your-server-ip"
+REMOTE_USER="root"
+REMOTE_DIR="/opt/ruhoowww"
+REMOTE_DIST_DIR="/opt/ruhoowww/dist/fivechess"
+REMOTE_DOWNLOADS_DIR="/opt/ruhoowww/public/downloads"
 ```
 
 ### 桌面应用

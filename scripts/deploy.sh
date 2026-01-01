@@ -166,11 +166,19 @@ else
     fi
   fi
   
-  # 复制 APK 文件（如果存在）
-  if ls release/*.apk 1> /dev/null 2>&1; then
-    cp release/*.apk "$TEMP_UPLOAD_DIR/miu-fivechess.apk" 2>/dev/null
+  # 复制 APK 文件（从 android/app/release/ 或 release/ 目录）
+  APK_SOURCE=""
+  if [ -f "android/app/release/app-release.apk" ]; then
+    APK_SOURCE="android/app/release/app-release.apk"
+  elif ls release/*.apk 1> /dev/null 2>&1; then
+    APK_SOURCE=$(ls release/*.apk | head -n 1)
+  fi
+  
+  if [ -n "$APK_SOURCE" ] && [ -f "$APK_SOURCE" ]; then
+    cp "$APK_SOURCE" "$TEMP_UPLOAD_DIR/miu-fivechess.apk" 2>/dev/null
     if [ $? -eq 0 ]; then
-      echo -e "${GREEN}✓ Android 应用包: miu-fivechess.apk${NC}"
+      APK_SIZE=$(du -h "$APK_SOURCE" | cut -f1)
+      echo -e "${GREEN}✓ Android 应用包: miu-fivechess.apk (${APK_SIZE})${NC}"
     fi
   fi
   
