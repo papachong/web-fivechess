@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --board-bg: #e6cfa7;
-  --board-line: #111827;
+  --board-bg: #2d3748;
+  --board-line: #60a5fa;
   --panel-bg: #0b1221;
   --text-color: #e5e7eb;
   
@@ -31,6 +31,30 @@ canvas {
   display: block;
   touch-action: none;
   user-select: none;
+}
+
+/* Player avatar frames */
+#player1-piece, #player2-piece {
+  background: radial-gradient(circle at 30% 30%, #ffffff1a 0 50%, transparent 60%),
+    linear-gradient(135deg, #1f2937, #0f172a);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+#player1-piece::after, #player2-piece::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.12);
+}
+
+#player1-piece img, #player2-piece img {
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.12);
 }
 
 /* 响应式设计 */
@@ -60,31 +84,30 @@ canvas {
   --text-color: #1f2937;
   
   color: var(--text-color);
-  background: var(--panel-bg);
+  background: radial-gradient(circle at 50% 0%, #ffffff 0%, #f5f5f5 100%);
 }
 
 /* Nature theme - 护眼主题 */
 :root.nature-theme {
   --board-bg: #c7d9a8;
-  --board-line: #6b7e4a;
-  --panel-bg: #f0f4e8;
-  --text-color: #2d3b1d;
+  --board-line: #5f7a38;
+  --panel-bg: #e8f5e9;
+  --text-color: #1b3320;
   
   color: var(--text-color);
-  background: linear-gradient(135deg, #f0f4e8 0%, #e8f1e0 100%);
+  background: radial-gradient(circle at 50% 0%, #ffffff 0%, #e8f5e9 60%, #c8e6c9 100%);
 }
 
 /* Traditional theme - 中国传统风格 */
 :root.traditional-theme {
-  --board-bg: #d4a574;
-  --board-line: #8b4513;
-  --panel-bg: #2c1810;
-  --text-color: #f5deb3;
+  --board-bg: #e6b380;
+  --board-line: #5d4037;
+  --panel-bg: #3e2723;
+  --text-color: #ffe0b2;
   
   color: var(--text-color);
-  background: radial-gradient(circle at 20% 20%, #c41e3a33 0 30%, transparent 30%),
-    radial-gradient(circle at 80% 30%, #ffd70033 0 26%, transparent 26%),
-    var(--panel-bg);
+  background: radial-gradient(circle at 50% 50%, #5d4037 0%, #3e2723 100%);
+  box-shadow: inset 0 0 100px rgba(0,0,0,0.5);
 }
 
 /* High Contrast theme - 高对比度无障碍主题 */
@@ -96,6 +119,17 @@ canvas {
   
   color: var(--text-color);
   background: var(--panel-bg);
+}
+
+/* Ink theme - 水墨雅韵 */
+:root.ink-theme {
+  --board-bg: #f0f0f0;
+  --board-line: #1a1a1a;
+  --panel-bg: #ffffff;
+  --text-color: #1a1a1a;
+  
+  color: var(--text-color);
+  background: radial-gradient(circle at 50% 50%, #f5f5f5 0%, #e0e0e0 100%);
 }
 
 /* Custom range slider styling */

@@ -1,4 +1,5 @@
 import './style.css'
+import { Application, BLEND_MODES, Container, Graphics, Sprite, Texture } from 'pixi.js'
 
 type Player = 0 | 1 | 2
 
@@ -21,7 +22,7 @@ interface PlayerRecord {
 
 interface Settings {
   soundEnabled: boolean
-  theme: 'dark' | 'light' | 'nature' | 'traditional' | 'highcontrast'
+  theme: 'dark' | 'light' | 'nature' | 'traditional' | 'highcontrast' | 'ink'
   pieceStyle: 'realistic' | 'glass' | 'flat' | 'neon'
   player1Name: string
   player2Name: string
@@ -57,7 +58,8 @@ type FireworkParticle = {
 
 const fireworkPalette = ['#f43f5e', '#f97316', '#facc15', '#4ade80', '#34d399', '#38bdf8', '#818cf8', '#c084fc']
 
-let animatingPieces: Map<string, number> = new Map()
+let pixiRenderer: PixiBoardRenderer | null = null
+let fireworksOverlay: FireworksOverlay | null = null
 let settings: Settings = { 
   soundEnabled: true, 
   theme: 'nature', 
@@ -70,8 +72,6 @@ let settings: Settings = {
   playerRecords: new Map()
 }
 let hoverPosition: { r: number; c: number } | null = null
-let winAnimationTime = 0
-let fireworks: FireworkParticle[] = []
 
 // Load settings from localStorage
 function loadSettings() {
@@ -185,82 +185,7 @@ function updatePlayerRecord(playerName: string, result: 'win' | 'loss' | 'draw')
 
 // Create fireworks effect
 function createFireworks(x: number, y: number, count: number = 36) {
-  for (let i = 0; i < count; i++) {
-    const angle = (Math.PI * 2 * i) / count + (Math.random() * 0.5 - 0.25)
-    const speed = 1.6 + Math.random() * 4.2
-    const ttl = 1.8 + Math.random() * 0.9
-    fireworks.push({
-      x,
-      y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      life: ttl,
-      ttl,
-      color: fireworkPalette[Math.floor(Math.random() * fireworkPalette.length)],
-      trail: []
-    })
-  }
-}
-
-// Update and draw fireworks
-function drawFireworks(ctx: CanvasRenderingContext2D) {
-  if (!fireworks.length) return
-  const toRemove: number[] = []
-  ctx.save()
-  ctx.globalCompositeOperation = 'lighter'
-  for (let i = 0; i < fireworks.length; i++) {
-    const particle = fireworks[i]
-    particle.trail.unshift({ x: particle.x, y: particle.y })
-    if (particle.trail.length > 7) {
-      particle.trail.pop()
-    }
-
-    particle.x += particle.vx
-    particle.y += particle.vy
-    particle.vy += 0.05
-    particle.life -= 0.016
-
-    const progress = particle.life / particle.ttl
-    if (progress <= 0) {
-      toRemove.push(i)
-      continue
-    }
-
-    const { r, g, b } = hexToRgb(particle.color)
-    ctx.globalAlpha = Math.max(progress, 0)
-
-    // Draw trailing light streak
-    if (particle.trail.length > 1) {
-      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${Math.min(0.7, progress + 0.2)})`
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.moveTo(particle.trail[0].x, particle.trail[0].y)
-      for (let t = 1; t < particle.trail.length; t++) {
-        ctx.lineTo(particle.trail[t].x, particle.trail[t].y)
-      }
-      ctx.stroke()
-    }
-
-    // Draw glowing core
-    const radius = 2 + (1 - progress) * 3
-    const gradient = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, radius * 3)
-    gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.9)`)
-    gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`)
-    ctx.fillStyle = gradient
-    ctx.beginPath()
-    ctx.arc(particle.x, particle.y, radius * 3, 0, Math.PI * 2)
-    ctx.fill()
-
-    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.9)`
-    ctx.beginPath()
-    ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2)
-    ctx.fill()
-  }
-  ctx.restore()
-
-  for (let i = toRemove.length - 1; i >= 0; i--) {
-    fireworks.splice(toRemove[i], 1)
-  }
+  fireworksOverlay?.spawnFireworks(x, y, count)
 }
 
 function hexToRgb(hex: string) {
@@ -335,8 +260,8 @@ function launchFireworkShow() {
   const bursts = 4 + Math.floor(Math.random() * 3)
   for (let i = 0; i < bursts; i++) {
     setTimeout(() => {
-      const x = margin + Math.random() * (width - margin * 2)
-      const y = margin + Math.random() * (height - margin * 2)
+      const x = Math.random() * window.innerWidth
+      const y = Math.random() * window.innerHeight * 0.8 // Keep it mostly in the upper part
       createFireworks(x, y, 45 + Math.floor(Math.random() * 30))
     }, i * 350)
   }
@@ -528,13 +453,418 @@ function getThemeColors() {
     case 'light':
       return { boardBg: '#f0e6d2', boardLine: '#8b7355', panelBg: '#f5f5f5' }
     case 'nature':
-      return { boardBg: '#c7d9a8', boardLine: '#6b8c3a', panelBg: '#f0f4e8' }
+      return { boardBg: '#c7d9a8', boardLine: '#5f7a38', panelBg: '#e8f5e9' }
     case 'traditional':
-      return { boardBg: '#d4a574', boardLine: '#8b6f47', panelBg: '#2c1810' }
+      return { boardBg: '#e6b380', boardLine: '#5d4037', panelBg: '#3e2723' }
     case 'highcontrast':
       return { boardBg: '#ffff00', boardLine: '#000000', panelBg: '#000000' }
+    case 'ink':
+      return { boardBg: '#f0f0f0', boardLine: '#1a1a1a', panelBg: '#ffffff' }
     default: // 'dark'
-      return { boardBg: '#e6cfa7', boardLine: '#111827', panelBg: '#0b1221' }
+      return { boardBg: '#2d3748', boardLine: '#60a5fa', panelBg: '#0b1221' }
+  }
+}
+
+function hexToNumber(hex: string) {
+  return parseInt(hex.replace('#', ''), 16)
+}
+
+class FireworksOverlay {
+  private app: Application
+  private layer: Graphics
+  private particles: FireworkParticle[] = []
+
+  constructor() {
+    const canvas = document.createElement('canvas')
+    canvas.id = 'fireworks-overlay'
+    Object.assign(canvas.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      pointerEvents: 'none',
+      zIndex: '9999'
+    })
+    document.body.appendChild(canvas)
+
+    this.app = new Application({
+      view: canvas,
+      resizeTo: window,
+      backgroundAlpha: 0,
+      antialias: true,
+      resolution: window.devicePixelRatio || 1,
+      autoDensity: true,
+    })
+
+    this.layer = new Graphics()
+    this.app.stage.addChild(this.layer)
+    this.app.ticker.add(this.tick)
+  }
+
+  spawnFireworks(x: number, y: number, count: number) {
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + (Math.random() * 0.5 - 0.25)
+      const speed = 3 + Math.random() * 6
+      const ttl = 1.5 + Math.random() * 1.0
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: ttl,
+        ttl,
+        color: fireworkPalette[Math.floor(Math.random() * fireworkPalette.length)],
+        trail: [],
+      })
+    }
+  }
+
+  private tick = (delta: number) => {
+    if (!this.particles.length) {
+      this.layer.clear()
+      return
+    }
+
+    this.layer.clear()
+    this.layer.blendMode = BLEND_MODES.ADD
+    
+    const toRemove: number[] = []
+
+    for (let i = 0; i < this.particles.length; i++) {
+      const particle = this.particles[i]
+      particle.trail.unshift({ x: particle.x, y: particle.y })
+      if (particle.trail.length > 8) particle.trail.pop()
+
+      particle.x += particle.vx * delta
+      particle.y += particle.vy * delta
+      particle.vy += 0.15 * delta // Gravity
+      particle.life -= 0.016 * delta
+
+      const progress = particle.life / particle.ttl
+      if (progress <= 0) {
+        toRemove.push(i)
+        continue
+      }
+
+      const { r, g, b } = hexToRgb(particle.color)
+      const color = (r << 16) + (g << 8) + b
+
+      if (particle.trail.length > 1) {
+        this.layer.lineStyle({ width: 3, color, alpha: Math.min(0.8, progress + 0.2) })
+        this.layer.moveTo(particle.trail[0].x, particle.trail[0].y)
+        for (let t = 1; t < particle.trail.length; t++) {
+          this.layer.lineTo(particle.trail[t].x, particle.trail[t].y)
+        }
+      }
+
+      const radius = 2 + (1 - progress) * 4
+      this.layer.beginFill(color, 0.9)
+      this.layer.drawCircle(particle.x, particle.y, radius)
+      this.layer.endFill()
+    }
+
+    for (let i = toRemove.length - 1; i >= 0; i--) {
+      this.particles.splice(toRemove[i], 1)
+    }
+  }
+}
+
+class PixiBoardRenderer {
+  private app: Application
+  private boardLayer: Graphics
+  private pieceLayer: Container
+  private overlayLayer: Container
+  private hoverLayer: Graphics
+  private lastMoveLayer: Graphics
+  private winningLayer: Graphics
+  private pieceTextures: Record<1 | 2, Texture>
+  private pieceSprites: Map<string, Sprite>
+  private animatingPieces: Map<string, number>
+  private winAnimationTime: number
+  private state: GameState | null
+  private hover: { r: number; c: number } | null
+  private colors: { boardBg: string; boardLine: string; panelBg: string }
+
+  constructor(view: HTMLCanvasElement) {
+    this.app = new Application({
+      view,
+      width,
+      height,
+      antialias: true,
+      backgroundAlpha: 0,
+      resolution: 1,
+      autoDensity: false,
+    })
+
+    this.boardLayer = new Graphics()
+    this.pieceLayer = new Container()
+    this.overlayLayer = new Container()
+    this.hoverLayer = new Graphics()
+    this.lastMoveLayer = new Graphics()
+    this.winningLayer = new Graphics()
+
+    this.overlayLayer.addChild(this.hoverLayer, this.lastMoveLayer, this.winningLayer)
+    this.app.stage.addChild(this.boardLayer, this.pieceLayer, this.overlayLayer)
+
+    this.pieceSprites = new Map()
+    this.animatingPieces = new Map()
+    this.state = null
+    this.hover = null
+    this.winAnimationTime = 0
+    this.colors = getThemeColors()
+
+    this.pieceTextures = {
+      1: this.buildPieceTexture(0x1a252f, 0x0f1419),
+      2: this.buildPieceTexture(0xffffff, 0xd0d0d0),
+    }
+
+    this.drawBoardBase()
+    this.app.ticker.add(this.tick)
+  }
+
+  updateTheme() {
+    this.colors = getThemeColors()
+    this.drawBoardBase()
+  }
+
+  renderState(state: GameState) {
+    this.state = state
+    if (!state.winner) {
+      this.winAnimationTime = 0
+    }
+    this.syncPieces()
+    this.updateLastMove()
+    this.updateWinningPieces()
+  }
+
+  setHover(position: { r: number; c: number } | null) {
+    this.hover = position
+    this.drawHover()
+  }
+
+  startPieceAnimation(r: number, c: number) {
+    const key = `${r}-${c}`
+    this.animatingPieces.set(key, 0)
+    const sprite = this.pieceSprites.get(key)
+    if (sprite) {
+      sprite.scale.set(0.25)
+    }
+  }
+
+  private drawBoardBase() {
+    const { boardBg, boardLine, panelBg } = this.colors
+    this.boardLayer.clear()
+    this.boardLayer.beginFill(hexToNumber(panelBg))
+    this.boardLayer.drawRect(0, 0, width, height)
+    this.boardLayer.endFill()
+
+    this.boardLayer.lineStyle({ width: 3, color: hexToNumber(boardLine) })
+    this.boardLayer.beginFill(hexToNumber(boardBg))
+    this.boardLayer.drawRect(margin, margin, boardSize * grid, boardSize * grid)
+    this.boardLayer.endFill()
+
+    this.boardLayer.lineStyle({ width: 2, color: hexToNumber(boardLine) })
+    for (let i = 0; i < boardSize; i++) {
+      const x = margin + i * grid
+      this.boardLayer.moveTo(x, margin)
+      this.boardLayer.lineTo(x, margin + boardSize * grid)
+
+      const y = margin + i * grid
+      this.boardLayer.moveTo(margin, y)
+      this.boardLayer.lineTo(margin + boardSize * grid, y)
+    }
+
+    const stars = [
+      [3, 3],
+      [3, 11],
+      [11, 3],
+      [11, 11],
+      [7, 7],
+    ]
+    this.boardLayer.beginFill(hexToNumber(boardLine))
+    for (const [r, c] of stars) {
+      const x = margin + c * grid
+      const y = margin + r * grid
+      this.boardLayer.drawCircle(x, y, 5)
+    }
+    this.boardLayer.endFill()
+  }
+
+  private buildPieceTexture(bodyColor: number, edgeColor: number): Texture {
+    const g = new Graphics()
+    const radius = grid * 0.43 // Slightly larger for better presence
+    const isWhite = bodyColor === 0xffffff
+    const rimColor = edgeColor
+    
+    // 1. Shadow (Common)
+    g.beginFill(0x000000, 0.3)
+    g.drawCircle(2, 3, radius * 0.95)
+    g.endFill()
+
+    if (isWhite) {
+      // --- White Piece (Jade/Shell style) ---
+      
+      // Base Body (Warm White)
+      g.beginFill(0xfdfcf5) 
+      g.drawCircle(0, 0, radius)
+      g.endFill()
+
+      // Inner Depth (Warm Grey gradient simulation)
+      g.beginFill(0xdcdcdc, 0.3)
+      g.drawCircle(radius * 0.1, radius * 0.1, radius * 0.85)
+      g.endFill()
+
+      // Subsurface Scattering (Warm center glow)
+      g.beginFill(0xfff8e1, 0.5)
+      g.drawCircle(-radius * 0.1, -radius * 0.1, radius * 0.6)
+      g.endFill()
+
+      // Edge Definition
+      g.lineStyle({ width: 1.2, color: rimColor, alpha: 0.35 })
+      g.drawCircle(0, 0, radius)
+      g.lineStyle({ width: 0 }) // Reset line style
+
+      // Main Highlight (Soft)
+      g.beginFill(0xffffff, 0.6)
+      g.drawEllipse(-radius * 0.3, -radius * 0.35, radius * 0.25, radius * 0.2)
+      g.endFill()
+      
+      // Secondary Highlight (Gloss)
+      g.beginFill(0xffffff, 0.8)
+      g.drawCircle(-radius * 0.35, -radius * 0.4, radius * 0.08)
+      g.endFill()
+
+    } else {
+      // --- Black Piece (Obsidian/Matte style) ---
+
+      // Base Body (Deep Black)
+      g.beginFill(0x0f172a)
+      g.drawCircle(0, 0, radius)
+      g.endFill()
+
+      // Ambient Reflection (Blue-ish tint at bottom)
+      g.beginFill(0x38bdf8, 0.1)
+      g.drawCircle(radius * 0.2, radius * 0.2, radius * 0.7)
+      g.endFill()
+
+      // Edge Rim (Top lighting)
+      g.lineStyle({ width: 1.5, color: rimColor, alpha: 0.22 })
+      g.drawCircle(0, 0, radius - 0.5)
+      g.lineStyle({ width: 0 })
+
+      // Main Highlight (Sharp)
+      g.beginFill(0xffffff, 0.2)
+      g.drawEllipse(-radius * 0.3, -radius * 0.35, radius * 0.2, radius * 0.15)
+      g.endFill()
+
+      // Specular Hotspot
+      g.beginFill(0xffffff, 0.7)
+      g.drawCircle(-radius * 0.35, -radius * 0.4, radius * 0.06)
+      g.endFill()
+    }
+
+    return this.app.renderer.generateTexture(g)
+  }
+
+  private syncPieces() {
+    if (!this.state) return
+    const requiredKeys = new Set<string>()
+
+    for (let r = 0; r < boardSize; r++) {
+      for (let c = 0; c < boardSize; c++) {
+        const p = this.state.board[r][c]
+        const key = `${r}-${c}`
+        if (p === 0) continue
+        requiredKeys.add(key)
+
+        if (!this.pieceSprites.has(key)) {
+          const sprite = new Sprite(this.pieceTextures[p as 1 | 2])
+          sprite.anchor.set(0.5)
+          sprite.position.set(margin + c * grid, margin + r * grid)
+          this.pieceLayer.addChild(sprite)
+          this.pieceSprites.set(key, sprite)
+          this.startPieceAnimation(r, c)
+        } else {
+          const sprite = this.pieceSprites.get(key)!
+          sprite.texture = this.pieceTextures[p as 1 | 2]
+          sprite.position.set(margin + c * grid, margin + r * grid)
+        }
+      }
+    }
+
+    for (const [key, sprite] of this.pieceSprites.entries()) {
+      if (!requiredKeys.has(key)) {
+        sprite.destroy()
+        this.pieceSprites.delete(key)
+        this.animatingPieces.delete(key)
+      }
+    }
+  }
+
+  private drawHover() {
+    this.hoverLayer.clear()
+    if (!this.state || !this.hover) return
+    const { r, c } = this.hover
+    if (this.state.board[r][c] !== 0 || this.state.winner) return
+    const x = margin + c * grid
+    const y = margin + r * grid
+    const radius = grid * 0.42
+    const color = this.state.current === 1 ? 0x2c3e50 : 0xffffff
+    this.hoverLayer.beginFill(color, 0.45)
+    this.hoverLayer.drawCircle(x, y, radius)
+    this.hoverLayer.endFill()
+  }
+
+  private updateLastMove() {
+    this.lastMoveLayer.clear()
+    if (!this.state || !this.state.lastMove) return
+    const { r, c } = this.state.lastMove
+    const x = margin + c * grid
+    const y = margin + r * grid
+    this.lastMoveLayer.lineStyle({ width: 3, color: 0x22d3ee })
+    this.lastMoveLayer.drawCircle(x, y, grid * 0.48)
+    this.lastMoveLayer.beginFill(0xef4444)
+    this.lastMoveLayer.drawCircle(x, y, grid * 0.12)
+    this.lastMoveLayer.endFill()
+  }
+
+  private updateWinningPieces() {
+    this.winningLayer.clear()
+    if (!this.state || !this.state.winningPieces || !this.state.winningPieces.length) return
+    const pulse = 0.5 + 0.5 * Math.sin(this.winAnimationTime * 0.1)
+    for (const { r, c } of this.state.winningPieces) {
+      const x = margin + c * grid
+      const y = margin + r * grid
+      const radius = grid * 0.42
+      const alpha = 0.6 * pulse
+      this.winningLayer.beginFill(0x22c55e, alpha)
+      this.winningLayer.drawCircle(x, y, radius * 1.3)
+      this.winningLayer.endFill()
+
+      this.winningLayer.lineStyle({ width: 3, color: 0x22c55e, alpha: 0.8 * pulse })
+      this.winningLayer.drawCircle(x, y, radius)
+    }
+  }
+
+  private tick = (delta: number) => {
+    for (const [key, progress] of this.animatingPieces.entries()) {
+      const next = Math.min(1, progress + 0.12 * delta)
+      const sprite = this.pieceSprites.get(key)
+      if (sprite) {
+        sprite.scale.set(0.25 + 0.75 * next)
+      }
+      if (next >= 1) {
+        this.animatingPieces.delete(key)
+      } else {
+        this.animatingPieces.set(key, next)
+      }
+    }
+
+    if (this.state && this.state.winner && this.state.winningPieces && this.state.winningPieces.length > 0) {
+      this.winAnimationTime += delta
+      this.updateWinningPieces()
+    }
   }
 }
 
@@ -596,212 +926,6 @@ function drawPiece(ctx: CanvasRenderingContext2D, x: number, y: number, radius: 
   drawPieceRealistic(ctx, x, y, radius, player)
 }
 
-function drawBoard(ctx: CanvasRenderingContext2D, state: GameState) {
-  const colors = getThemeColors()
-  ctx.clearRect(0, 0, width, height)
-
-  // panel background
-  ctx.fillStyle = colors.panelBg
-  ctx.fillRect(0, 0, width, height)
-
-  // board background
-  ctx.fillStyle = colors.boardBg
-  ctx.strokeStyle = colors.boardLine
-  ctx.lineWidth = 3
-  ctx.fillRect(margin, margin, boardSize * grid, boardSize * grid)
-  ctx.strokeRect(margin, margin, boardSize * grid, boardSize * grid)
-
-  // grid lines
-  ctx.strokeStyle = colors.boardLine
-  ctx.lineWidth = 2
-  for (let i = 0; i < boardSize; i++) {
-    const x = margin + i * grid
-    ctx.beginPath()
-    ctx.moveTo(x, margin)
-    ctx.lineTo(x, margin + boardSize * grid)
-    ctx.stroke()
-
-    const y = margin + i * grid
-    ctx.beginPath()
-    ctx.moveTo(margin, y)
-    ctx.lineTo(margin + boardSize * grid, y)
-    ctx.stroke()
-  }
-
-  // star points
-  const stars = [
-    [3, 3],
-    [3, 11],
-    [11, 3],
-    [11, 11],
-    [7, 7],
-  ]
-  ctx.fillStyle = colors.boardLine
-  for (const [r, c] of stars) {
-    const x = margin + c * grid
-    const y = margin + r * grid
-    ctx.beginPath()
-    ctx.arc(x, y, 5, 0, Math.PI * 2)
-    ctx.fill()
-  }
-
-  // Draw hover shadow effect
-  if (hoverPosition && state.board[hoverPosition.r][hoverPosition.c] === 0 && !state.winner) {
-    const { r, c } = hoverPosition
-    const x = margin + c * grid
-    const y = margin + r * grid
-    const radius = grid * 0.42
-    
-    // Shadow circle for empty position
-    ctx.fillStyle = state.current === 1 ? 'rgba(44, 62, 80, 0.5)' : 'rgba(255, 255, 255, 0.4)'
-    ctx.beginPath()
-    ctx.arc(x, y, radius, 0, Math.PI * 2)
-    ctx.fill()
-  }
-
-  // pieces with enhanced styling
-  for (let r = 0; r < boardSize; r++) {
-    for (let c = 0; c < boardSize; c++) {
-      const p = state.board[r][c]
-      if (p === 0) continue
-      const x = margin + c * grid
-      const y = margin + r * grid
-      const radius = grid * 0.42
-      
-      // Get animation progress if piece is being placed
-      const key = `${r}-${c}`
-      const progress = animatingPieces.get(key) || 1
-      const animRadius = radius * progress
-      
-      // Draw piece with enhanced shadow
-      const shadowOffsetX = 3
-      const shadowOffsetY = 3
-      const shadowGradient = ctx.createRadialGradient(x + shadowOffsetX, y + shadowOffsetY, 2, x + shadowOffsetX, y + shadowOffsetY, animRadius)
-      shadowGradient.addColorStop(0, 'rgba(0, 0, 0, 0.4)')
-      shadowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
-      ctx.fillStyle = shadowGradient
-      ctx.beginPath()
-      ctx.arc(x, y, animRadius, 0, Math.PI * 2)
-      ctx.fill()
-      
-      // Main piece gradient with better depth
-      const gradient = ctx.createRadialGradient(x - 5, y - 5, 2, x, y, animRadius)
-      if (p === 1) {
-        // Black piece
-        gradient.addColorStop(0, '#4a5f7f')
-        gradient.addColorStop(0.4, '#2c3e50')
-        gradient.addColorStop(0.9, '#1a252f')
-        gradient.addColorStop(1, '#0f1419')
-      } else {
-        // White piece
-        gradient.addColorStop(0, '#ffffff')
-        gradient.addColorStop(0.3, '#f5f5f5')
-        gradient.addColorStop(0.7, '#e8e8e8')
-        gradient.addColorStop(1, '#d0d0d0')
-      }
-      
-      ctx.fillStyle = gradient
-      ctx.beginPath()
-      ctx.arc(x, y, animRadius, 0, Math.PI * 2)
-      ctx.fill()
-      
-      // Enhanced highlight on white pieces
-      if (p === 2) {
-        const highlightGrad = ctx.createRadialGradient(x - 7, y - 7, 1, x, y, animRadius * 0.8)
-        highlightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.8)')
-        highlightGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)')
-        highlightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)')
-        ctx.fillStyle = highlightGrad
-        ctx.beginPath()
-        ctx.arc(x, y, animRadius, 0, Math.PI * 2)
-        ctx.fill()
-      }
-      
-      // Inner dark shading for black pieces
-      if (p === 1) {
-        const innerShade = ctx.createRadialGradient(x + 4, y + 4, 0, x, y, animRadius)
-        innerShade.addColorStop(0, 'rgba(0, 0, 0, 0)')
-        innerShade.addColorStop(0.7, 'rgba(0, 0, 0, 0.1)')
-        innerShade.addColorStop(1, 'rgba(0, 0, 0, 0.3)')
-        ctx.fillStyle = innerShade
-        ctx.beginPath()
-        ctx.arc(x, y, animRadius, 0, Math.PI * 2)
-        ctx.fill()
-      }
-      
-      // 3D Border effect
-      ctx.strokeStyle = p === 1 ? 'rgba(0, 0, 0, 0.5)' : 'rgba(150, 150, 150, 0.6)'
-      ctx.lineWidth = 1.5
-      ctx.beginPath()
-      ctx.arc(x, y, animRadius, 0, Math.PI * 2)
-      ctx.stroke()
-      
-      // Inner highlight edge
-      const edgeGrad = ctx.createLinearGradient(x - animRadius, y - animRadius, x + animRadius, y + animRadius)
-      edgeGrad.addColorStop(0, p === 1 ? 'rgba(100, 120, 140, 0.4)' : 'rgba(255, 255, 255, 0.3)')
-      edgeGrad.addColorStop(1, 'rgba(0, 0, 0, 0.1)')
-      ctx.strokeStyle = edgeGrad
-      ctx.lineWidth = 2
-      ctx.beginPath()
-      ctx.arc(x, y, animRadius - 1, 0, Math.PI * 2)
-      ctx.stroke()
-    }
-  }
-
-  // highlight last move
-  if (state.lastMove) {
-    const { r, c } = state.lastMove
-    const x = margin + c * grid
-    const y = margin + r * grid
-    ctx.strokeStyle = '#22d3ee'
-    ctx.lineWidth = 3
-    ctx.beginPath()
-    ctx.arc(x, y, grid * 0.48, 0, Math.PI * 2)
-    ctx.stroke()
-
-    // Center marker for last move (red dot)
-    ctx.fillStyle = '#ef4444'
-    ctx.beginPath()
-    ctx.arc(x, y, grid * 0.12, 0, Math.PI * 2)
-    ctx.fill()
-  }
-
-  // highlight winning pieces with animation
-  if (state.winningPieces && state.winningPieces.length > 0) {
-    const pulseIntensity = 0.5 + 0.5 * Math.sin(winAnimationTime * 0.1)
-    
-    for (const { r, c } of state.winningPieces) {
-      const x = margin + c * grid
-      const y = margin + r * grid
-      const radius = grid * 0.42
-      
-      // Glowing halo effect
-      const glowGrad = ctx.createRadialGradient(x, y, 0, x, y, radius * 1.3)
-      glowGrad.addColorStop(0, `rgba(34, 197, 94, ${0.6 * pulseIntensity})`)
-      glowGrad.addColorStop(0.5, `rgba(34, 197, 94, ${0.2 * pulseIntensity})`)
-      glowGrad.addColorStop(1, 'rgba(34, 197, 94, 0)')
-      
-      ctx.fillStyle = glowGrad
-      ctx.beginPath()
-      ctx.arc(x, y, radius * 1.3, 0, Math.PI * 2)
-      ctx.fill()
-      
-      // Bright border
-      ctx.strokeStyle = `rgba(34, 197, 94, ${0.8 * pulseIntensity})`
-      ctx.lineWidth = 3
-      ctx.beginPath()
-      ctx.arc(x, y, radius, 0, Math.PI * 2)
-      ctx.stroke()
-    }
-  }
-
-  // Draw fireworks effect
-  drawFireworks(ctx)
-
-  // info bar - removed next player indicator from here
-  ctx.fillStyle = colors.panelBg
-  ctx.fillRect(0, height - infoBar, width, infoBar)
-}
 
 function run() {
   const app = document.querySelector<HTMLDivElement>('#app')!
@@ -870,6 +994,7 @@ function run() {
                   <option value="light">浅色</option>
                   <option value="nature">护眼绿</option>
                   <option value="traditional">中国风</option>
+                  <option value="ink">水墨雅韵</option>
                   <option value="highcontrast">高对比度</option>
                 </select>
               </div>
@@ -1113,7 +1238,7 @@ function run() {
         <div class="mt-8 text-center text-xs text-gray-400 border-t border-slate-700 pt-6 space-y-3">
           <!-- Company -->
           <div class="flex items-center justify-center gap-2">
-            <span>儒虎智能科技（北京）有限公司</span>
+            <a href="https://ruhooai.com/" target="_blank" rel="noopener noreferrer" class="hover:text-cyan-400 transition duration-200">儒虎智能科技（北京）有限公司</a>
           </div>
           <!-- ICP and Police Registration -->
           <div class="space-y-1">
@@ -1133,9 +1258,14 @@ function run() {
   `
 
   const canvas = document.querySelector<HTMLCanvasElement>('#board')!
-  const ctx = canvas.getContext('2d')!
+  pixiRenderer = new PixiBoardRenderer(canvas)
+  fireworksOverlay = new FireworksOverlay()
   let state = createInitialState()
   let menuOpen = false
+
+  // Load settings (includes theme setup) before first render
+  loadSettings()
+  pixiRenderer.updateTheme()
 
   // Load from localStorage
   const saved = localStorage.getItem('fivechess-state')
@@ -1147,8 +1277,10 @@ function run() {
     }
   }
 
-  const redraw = () => drawBoard(ctx, state)
-  redraw()
+  const redraw = () => {
+    pixiRenderer?.renderState(state)
+    pixiRenderer?.setHover(hoverPosition)
+  }
 
   // Draw player pieces in info bar
   function drawPlayerPieces() {
@@ -1200,6 +1332,14 @@ function run() {
     // Display player 2 avatar or piece
     displayAvatar(p2Container, p2Canvas, ctx2, settings.player2Avatar, 2)
   }
+
+  function refreshBoard() {
+    redraw()
+    drawPlayerPieces()
+    updateNextPlayerIndicator()
+  }
+
+  refreshBoard()
 
   // Show game end panel
   // Check if board is full (draw condition)
@@ -1347,7 +1487,6 @@ function run() {
     if (winningPieces) {
       state.winner = state.current
       state.winningPieces = winningPieces
-      winAnimationTime = 0
       // Show game end panel after animation completes
       setTimeout(() => {
         showGameEndPanel(state.winner)
@@ -1363,45 +1502,9 @@ function run() {
       state.current = state.current === 1 ? 2 : 1
     }
     localStorage.setItem('fivechess-state', JSON.stringify(state))
-    animatePiece()
+    refreshBoard()
   }
 
-  // Animation loop for piece placement
-  function animatePiece() {
-    let hasAnimations = false
-    for (const [key, progress] of animatingPieces.entries()) {
-      const newProgress = progress + 0.12
-      if (newProgress >= 1) {
-        animatingPieces.delete(key)
-      } else {
-        animatingPieces.set(key, newProgress)
-        hasAnimations = true
-      }
-    }
-    
-    // Update win animation time if there's a winner
-    if (state.winner && state.winningPieces && state.winningPieces.length > 0) {
-      winAnimationTime++
-      hasAnimations = true
-    } else if (!state.winner) {
-      // Update animation for next player piece
-      winAnimationTime++
-      hasAnimations = true
-    }
-    
-    // Check if there are fireworks to animate
-    if (fireworks.length > 0) {
-      hasAnimations = true
-    }
-    
-    redraw()
-    drawPlayerPieces()
-    updateNextPlayerIndicator()
-    if (hasAnimations) {
-      requestAnimationFrame(animatePiece)
-    }
-  }
-  
   // Update next player indicator
   function updateNextPlayerIndicator() {
     const player1Indicator = document.querySelector<HTMLDivElement>('#player1-next-indicator')
@@ -1429,7 +1532,8 @@ function run() {
   document.querySelector('#menu-reset')?.addEventListener('click', () => {
     state = createInitialState()
     localStorage.removeItem('fivechess-state')
-    redraw()
+    hoverPosition = null
+    refreshBoard()
     toggleMenu()
   })
 
@@ -1437,7 +1541,8 @@ function run() {
   document.querySelector('#top-reset')?.addEventListener('click', () => {
     state = createInitialState()
     localStorage.removeItem('fivechess-state')
-    redraw()
+    hoverPosition = null
+    refreshBoard()
   })
 
   document.querySelector('#menu-save')?.addEventListener('click', () => {
@@ -1487,7 +1592,8 @@ function run() {
     state.winner = 0
     state.lastMove = null
     localStorage.setItem('fivechess-state', JSON.stringify(state))
-    redraw()
+    hoverPosition = null
+    refreshBoard()
   })
 
   // Top bar sound toggle handler
@@ -1524,7 +1630,8 @@ function run() {
     const panel = document.querySelector<HTMLDivElement>('#game-end-panel')!
     state = createInitialState()
     localStorage.removeItem('fivechess-state')
-    redraw()
+    hoverPosition = null
+    refreshBoard()
     panel.classList.add('hidden')
   })
 
@@ -1548,10 +1655,11 @@ function run() {
     }
     
     themeSelect.onchange = () => {
-      settings.theme = themeSelect.value as 'dark' | 'light' | 'nature' | 'traditional' | 'highcontrast'
+      settings.theme = themeSelect.value as 'dark' | 'light' | 'nature' | 'traditional' | 'highcontrast' | 'ink'
       localStorage.setItem('fivechess-settings', JSON.stringify(settings))
       applyTheme()
-      redraw()
+      pixiRenderer?.updateTheme()
+      refreshBoard()
     }
     
     panel.classList.remove('hidden')
@@ -1586,7 +1694,8 @@ function run() {
             btn.textContent = `保存 ${idx + 1}: ${save.name}`
             btn.addEventListener('click', () => {
               state = save.state
-              redraw()
+              hoverPosition = null
+              refreshBoard()
               panel.classList.add('hidden')
               showSuccessNotification('游戏已加载')
             })
@@ -1734,13 +1843,13 @@ function run() {
   canvas.addEventListener('mousemove', (evt: MouseEvent) => {
     const pos = getGridPosition(evt)
     hoverPosition = pos
-    redraw()
+    pixiRenderer?.setHover(hoverPosition)
   })
   
   // Mouse leave event to clear hover effect
   canvas.addEventListener('mouseleave', () => {
     hoverPosition = null
-    redraw()
+    pixiRenderer?.setHover(null)
   })
 
   // Player name and avatar uploads
@@ -2076,13 +2185,11 @@ function run() {
   }
   
   // Load settings on startup
-  loadSettings()
   updateNameInputs()
   updatePlayerDropdown(1)
   updatePlayerDropdown(2)
   drawPlayerPieces()
   updateNextPlayerIndicator()
-  animatePiece()
 }
 
 run()

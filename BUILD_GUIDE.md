@@ -1,15 +1,32 @@
-# 小miu仔五子棋 - 跨平台打包指南
+# 小miu仔五子棋 - 跨平台打包详细指南
+
+> 📖 本指南用于 **进阶开发者** 和 **打包维护者**。
+> 如果只是想快速体验游戏，请参考 [README.md](./README.md) 中的"快速开始"部分。
 
 ## 📦 项目结构
 
 ```
 web-fivechess/
-├── electron/          # Electron 桌面端配置
-│   └── main.js
+├── src/                    # TypeScript 源代码
+│   ├── main.ts            # 核心游戏逻辑与 Pixi.js 渲染
+│   ├── style.css          # 全局样式与主题定义
+│   └── counter.ts         # 工具函数
+├── public/                # 静态资源
+│   ├── icon.svg           # 应用图标源 (512x512+)
+│   ├── icon.icns          # Mac 应用图标
+│   ├── icon.ico           # Windows 应用图标
+│   └── downloads/         # 应用下载目录
+├── electron/              # Electron 桌面端配置
+│   ├── main.cjs          # Electron 主进程
+│   └── preload.cjs       # 预加载脚本
 ├── capacitor.config.json  # Capacitor 移动端配置
-├── ios/              # iOS 项目 (运行 cap add ios 后生成)
-├── android/          # Android 项目 (运行 cap add android 后生成)
-└── release/          # 打包输出目录
+├── ios/                   # iOS 项目 (运行 cap add ios 后生成)
+├── android/               # Android 项目 (运行 cap add android 后生成)
+├── release/               # 打包输出目录
+├── vite.config.js         # Vite 构建配置
+├── tailwind.config.js     # Tailwind CSS 配置
+├── tsconfig.json          # TypeScript 配置
+└── dist/                  # 生产构建输出
 ```
 
 ## 🚀 快速开始
@@ -444,38 +461,60 @@ iOS/Android 图标在各自的原生项目中配置。
 
 ---
 
-## 🔧 常见问题
+## 🔧 常见问题与故障排除
 
-### Q: Electron 打包失败?
+### Electron 打包问题
+
+#### Q1: `npm run electron:build` 因网络超时失败
 ```bash
-# 如果遇到网络问题，使用自定义打包脚本
-bash scripts/build-mac-app.sh
+# 解决方案 1：使用国内 CDN（快速）
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run electron:build:mac
 
-# 清理缓存重试
-rm -rf node_modules release
-npm install
-npm run electron:build
+# 解决方案 2：使用自定义脚本
+bash scripts/build-mac-app.sh
 ```
 
-### 打包状态
-**✅ Mac 版本 (v1.0.0)**
-- 📦 DMG 文件: `public/downloads/miu-fivechess-mac.dmg`
-- 📁 .app 目录: `release/miu-fivechess.app`
-- 📝 可通过下载按钮直接下载
+#### Q2: Mac 应用签名错误
+```bash
+# 不签名打包（用于个人测试）
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run electron:build:mac
 
-### Q: Capacitor 同步失败?
+# 使用证书签名（用于发布）
+npm run electron:build:mac  # 需提前配置 Developer ID 证书
+```
+
+#### Q3: Windows 代码签名问题
+```bash
+# 不签名打包（用于个人测试）
+npm run electron:build:win
+```
+
+### Capacitor 问题
+
+#### Q1: `npm run cap:sync` 失败
 ```bash
 # 确保先构建 Web 版本
 npm run build
-npm run cap:sync
+npm run cap:sync  # 再次尝试
 ```
 
-### Q: iOS 签名问题?
-- 确保在 Xcode 中登录 Apple Developer 账号
-- 检查 Bundle Identifier 是否唯一
+#### Q2: iOS CocoaPods 依赖报错
+```bash
+cd ios/App
+rm -rf Pods Podfile.lock
+pod install
+cd ../../
+```
+
+#### Q3: Android 构建缓慢
+```bash
+# 使用本地 Gradle 缓存
+cd android
+./gradlew build --offline
+```
 
 ---
 
 ## 📄 许可证
 
-MIT © 2025 GallenMa
+MIT License © 2024-2025 [Ruhoo AI](https://ruhooai.com/)
