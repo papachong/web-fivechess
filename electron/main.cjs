@@ -8,10 +8,9 @@ let isQuitting = false
 
 // 处理来自渲染进程的退出请求
 ipcMain.on('quit-app', (event) => {
-  // 触发窗口关闭事件，而不是直接退出
-  if (mainWindow) {
-    mainWindow.close()
-  }
+  // 设置标志并直接退出
+  isQuitting = true
+  app.quit()
 })
 
 function getAssetPath(asset) {
@@ -143,8 +142,23 @@ function createWindow() {
     // 阻止默认关闭
     event.preventDefault()
     
-    // 发送关闭确认事件到渲染进程
-    mainWindow.webContents.send('confirm-exit')
+    // 在主进程显示确认对话框
+    dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      buttons: ['取消', '退出'],
+      defaultId: 0,
+      cancelId: 0,
+      title: '确认退出',
+      message: '确定要退出游戏吗？'
+    }).then(result => {
+      if (result.response === 1) {
+        // 用户点击了"退出"按钮
+        isQuitting = true
+        mainWindow.destroy()
+        app.quit()
+      }
+      // 用户点击了"取消"按钮，不做任何操作
+    })
   })
 
   mainWindow.on('closed', () => {

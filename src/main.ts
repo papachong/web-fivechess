@@ -66,7 +66,7 @@ let pixiRenderer: PixiBoardRenderer | null = null
 let fireworksOverlay: FireworksOverlay | null = null
 let settings: Settings = { 
   soundEnabled: true, 
-  theme: 'traditional', 
+  theme: 'nature', 
   pieceStyle: 'realistic',
   player1Name: '西门鸡翅', 
   player2Name: '孤独牛排',
@@ -111,8 +111,8 @@ function loadSettings() {
     }
   }
 
-  // Single style only: force traditional theme regardless of stored value.
-  settings.theme = 'traditional'
+  // Single style only: force nature (green) theme regardless of stored value.
+  settings.theme = 'nature'
 
   // Ensure nameHistory is always an array
   if (!Array.isArray(settings.nameHistory)) {
@@ -131,13 +131,13 @@ function loadSettings() {
 function applyTheme() {
   const root = document.documentElement
   
-  // Single style only: always apply the traditional theme tokens.
+  // Single style only: always apply the nature (green) theme tokens.
   root.classList.remove('light-theme', 'nature-theme', 'traditional-theme', 'highcontrast-theme', 'ink-theme')
-  root.style.setProperty('--board-bg', '#d4a574')
-  root.style.setProperty('--board-line', '#8b6f47')
-  root.style.setProperty('--panel-bg', '#2c1810')
-  root.style.setProperty('--text-color', '#f0e6d2')
-  root.classList.add('traditional-theme')
+  root.style.setProperty('--board-bg', '#c7d9a8')
+  root.style.setProperty('--board-line', '#5f7a38')
+  root.style.setProperty('--panel-bg', '#1a2f1a')
+  root.style.setProperty('--text-color', '#e8f5e9')
+  root.classList.add('nature-theme')
 }
 
 // Initialize or get player record
@@ -2224,8 +2224,10 @@ function run() {
   document.querySelector('#menu-exit')?.addEventListener('click', () => {
     const electronAPI = (window as any).electronAPI
     if (electronAPI && typeof electronAPI.quitApp === 'function') {
-      // Electron 由主进程弹一次确认
-      electronAPI.quitApp()
+      // Electron 版本：先确认再退出
+      if (confirm('确定要退出游戏吗？')) {
+        electronAPI.quitApp()
+      }
     } else {
       // Web 版本：本地确认一次
       if (confirm('确定要退出游戏吗？')) {
