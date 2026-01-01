@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>miu仔五子棋 - 交叉点版</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        /* 木纹背景 */
+        .bg-wood {
+            background-color: #E0B870;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E");
+        }
+
+        /* 棋子立体效果 */
+        .stone-black {
+            background: radial-gradient(circle at 35% 35%, #666 0%, #000 60%);
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+        }
+        .stone-white {
+            background: radial-gradient(circle at 35% 35%, #fff 0%, #ddd 60%, #999 100%);
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* 菜单过渡动画 */
+        .menu-enter-active, .menu-leave-active {
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .menu-enter-from, .menu-leave-to {
+            opacity: 0;
+            transform: translateX(-10px) scale(0.95);
+        }
+
+        body { overflow: hidden; }
+    </style>
+</head>
+<body>
+
+<div id="app" class="h-screen w-screen flex flex-col font-sans select-none bg-stone-100">
+    
+    <div class="h-10 bg-white border-b border-gray-300 flex items-center px-4 relative shadow-sm z-30">
+        <div class="flex space-x-2">
+            <div class="w-3 h-3 rounded-full bg-red-500 border border-red-600"></div>
+            <div class="w-3 h-3 rounded-full bg-yellow-400 border border-yellow-500"></div>
+            <div class="w-3 h-3 rounded-full bg-green-500 border border-green-600"></div>
+        </div>
+        <div class="absolute inset-0 flex justify-center items-center font-bold text-gray-700 pointer-events-none">
+            miu仔五子棋
+        </div>
+    </div>
+
+    <div class="flex-grow flex items-center justify-center p-4 bg-stone-200" @click="isMenuOpen = false">
+        
+        <div class="relative bg-wood shadow-2xl rounded-sm board-wrapper" 
+             style="width: 600px; height: 600px; padding: 20px;" 
+             @click.stop> <div class="absolute top-0 left-0 z-50 p-4">
+                <button 
+                    @click="toggleMenu"
+                    class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-900/80 text-white hover:bg-green-600 transition shadow-lg backdrop-blur-sm"
+                >
+                    <i :class="isMenuOpen ? 'fas fa-times' : 'fas fa-bars'"></i>
+                </button>
+
+                <transition name="menu">
+                    <div v-if="isMenuOpen" class="mt-2 w-48 bg-gray-900/90 backdrop-blur-md rounded-lg shadow-xl overflow-hidden border border-white/10">
+                        <div class="px-4 py-3 border-b border-gray-700">
+                            <span class="text-green-400 font-bold tracking-widest text-sm">菜单选项</span>
+                        </div>
+                        <div class="flex flex-col py-1">
+                            <button class="menu-item text-green-400"><i class="fas fa-redo-alt w-6"></i> 重新开始</button>
+                            <button class="menu-item text-gray-200"><i class="fas fa-save w-6"></i> 保存游戏</button>
+                            <button class="menu-item text-gray-200"><i class="fas fa-folder-open w-6"></i> 加载游戏</button>
+                            <button class="menu-item text-gray-200"><i class="fas fa-cog w-6"></i> 设置</button>
+                            <div class="h-px bg-gray-700 my-1"></div>
+                            <button class="menu-item text-red-400 hover:text-red-300"><i class="fas fa-sign-out-alt w-6"></i> 退出游戏</button>
+                        </div>
+                    </div>
+                </transition>
+            </div>
+
+            <div class="w-full h-full relative grid grid-cols-15 grid-rows-15">
+                
+                <div 
+                    v-for="(cell, index) in 225" 
+                    :key="index"
+                    class="relative flex items-center justify-center cursor-pointer group"
+                    @click="handleMove(index)"
+                >
+                    <div class="absolute bg-black h-[1px]" 
+                         :class="{
+                             'left-1/2 right-0': index % 15 === 0, 
+                             'left-0 right-1/2': index % 15 === 14, 
+                             'w-full': index % 15 !== 0 && index % 15 !== 14 
+                         }"></div>
+
+                    <div class="absolute bg-black w-[1px]" 
+                         :class="{
+                             'top-1/2 bottom-0': Math.floor(index / 15) === 0, 
+                             'top-0 bottom-1/2': Math.floor(index / 15) === 14, 
+                             'h-full': Math.floor(index / 15) !== 0 && Math.floor(index / 15) !== 14 
+                         }"></div>
+
+                    <div v-if="isStarPoint(index)" class="absolute w-2 h-2 bg-black rounded-full z-0"></div>
+
+                    <div v-if="!stones[index]" 
+                         class="absolute w-[85%] h-[85%] rounded-full opacity-0 group-hover:opacity-40 transition z-10"
+                         :class="isBlackNext ? 'bg-black' : 'bg-white'">
+                    </div>
+
+                    <div v-if="stones[index] === 'black'" class="stone-black absolute w-[90%] h-[90%] rounded-full z-20"></div>
+                    <div v-if="stones[index] === 'white'" class="stone-white absolute w-[90%] h-[90%] rounded-full z-20"></div>
+
+                    <div v-if="lastMoveIndex === index" class="absolute w-2 h-2 bg-red-500 rounded-full z-30 border border-white shadow-sm"></div>
+
+                </div>
+            </div>
+
+            <div class="absolute -bottom-12 left-0 w-full flex justify-between items-center px-2">
+                <div class="flex items-center space-x-3 bg-white/80 backdrop-blur px-4 py-2 rounded-full shadow-sm border border-white/50">
+                    <span class="text-sm text-gray-500 font-bold">NEXT</span>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-4 h-4 rounded-full shadow-inner border border-gray-300 transition-colors duration-300"
+                             :class="isBlackNext ? 'bg-black' : 'bg-white'"></div>
+                        <span class="font-bold text-gray-800">{{ isBlackNext ? '黑棋' : '白棋' }}</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style>
+    /* 菜单按钮通用样式 */
+    .menu-item {
+        text-align: left;
+        padding: 10px 16px;
+        font-size: 14px;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+    }
+    .menu-item:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+    }
+    .grid-cols-15 { grid-template-columns: repeat(15, minmax(0, 1fr)); }
+    .grid-rows-15 { grid-template-rows: repeat(15, minmax(0, 1fr)); }
+</style>
+
+<script>
+    const { createApp, ref, reactive } = Vue
+
+    createApp({
+        setup() {
+            const size = 15;
+            const isMenuOpen = ref(false);
+            const isBlackNext = ref(true);
+            const stones = reactive({}); // 存储棋盘状态: { index: 'black' | 'white' }
+            const lastMoveIndex = ref(null);
+
+            // 初始化：放置天元黑子
+            const centerIndex = 7 * size + 7;
+            stones[centerIndex] = 'black';
+            lastMoveIndex.value = centerIndex;
+            isBlackNext.value = false;
+
+            const toggleMenu = () => {
+                isMenuOpen.value = !isMenuOpen.value;
+            };
+
+            const isStarPoint = (index) => {
+                const row = Math.floor(index / size);
+                const col = index % size;
+                const stars = [
+                    [3, 3], [3, 11], 
+                    [7, 7], 
+                    [11, 3], [11, 11]
+                ];
+                return stars.some(pos => pos[0] === row && pos[1] === col);
+            };
+
+            const handleMove = (index) => {
+                if (stones[index]) return; // 已有子不能下
+
+                stones[index] = isBlackNext.value ? 'black' : 'white';
+                lastMoveIndex.value = index;
+                isBlackNext.value = !isBlackNext.value;
+            };
+
+            return {
+                isMenuOpen,
+                toggleMenu,
+                isStarPoint,
+                stones,
+                handleMove,
+                isBlackNext,
+                lastMoveIndex
+            }
+        }
+    }).mount('#app')
+</script>
+
+</body>
+</html>

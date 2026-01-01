@@ -26,8 +26,12 @@ interface Settings {
   pieceStyle: 'realistic' | 'glass' | 'flat' | 'neon'
   player1Name: string
   player2Name: string
-  player1Avatar: string // base64 image
-  player2Avatar: string // base64 image
+  player1Type: 'human' | 'ai'
+  player1Difficulty: 'easy' | 'medium' | 'hard'
+  player2Type: 'human' | 'ai'
+  player2Difficulty: 'easy' | 'medium' | 'hard'
+  lastHumanPlayer1Name?: string
+  lastHumanPlayer2Name?: string
   nameHistory: string[]
   playerRecords: Map<string, PlayerRecord>
 }
@@ -62,12 +66,14 @@ let pixiRenderer: PixiBoardRenderer | null = null
 let fireworksOverlay: FireworksOverlay | null = null
 let settings: Settings = { 
   soundEnabled: true, 
-  theme: 'nature', 
+  theme: 'traditional', 
   pieceStyle: 'realistic',
   player1Name: '西门鸡翅', 
   player2Name: '孤独牛排',
-  player1Avatar: '',
-  player2Avatar: '',
+  player1Type: 'human',
+  player1Difficulty: 'medium',
+  player2Type: 'ai',
+  player2Difficulty: 'medium',
   nameHistory: ['西门鸡翅', '孤独牛排'],
   playerRecords: new Map()
 }
@@ -79,9 +85,22 @@ function loadSettings() {
   if (saved) {
     try {
       const loaded = JSON.parse(saved)
-      // If avatars are empty in loaded settings, use the defaults
-      if (!loaded.player1Avatar) delete loaded.player1Avatar
-      if (!loaded.player2Avatar) delete loaded.player2Avatar
+      // Migration: remove avatar fields if present
+      if ('player1Avatar' in loaded) delete loaded.player1Avatar
+      if ('player2Avatar' in loaded) delete loaded.player2Avatar
+      
+      // Migration: map old gameMode/difficulty to new fields
+      if ('gameMode' in loaded) {
+         if (loaded.gameMode === 'pve') {
+             loaded.player2Type = 'ai'
+             loaded.player2Difficulty = loaded.difficulty || 'medium'
+         } else {
+             loaded.player2Type = 'human'
+         }
+         delete loaded.gameMode
+         delete loaded.difficulty
+      }
+
       settings = { ...settings, ...loaded }
       // Convert playerRecords to Map if needed
       if (loaded.playerRecords && typeof loaded.playerRecords === 'object') {
@@ -91,6 +110,10 @@ function loadSettings() {
       console.error('Failed to load settings:', e)
     }
   }
+
+  // Single style only: force traditional theme regardless of stored value.
+  settings.theme = 'traditional'
+
   // Ensure nameHistory is always an array
   if (!Array.isArray(settings.nameHistory)) {
     settings.nameHistory = []
@@ -108,44 +131,13 @@ function loadSettings() {
 function applyTheme() {
   const root = document.documentElement
   
-  // Remove all theme classes
-  root.classList.remove('light-theme', 'nature-theme', 'traditional-theme', 'highcontrast-theme')
-  
-  switch(settings.theme) {
-    case 'light':
-      root.style.setProperty('--board-bg', '#f0e6d2')
-      root.style.setProperty('--board-line', '#8b7355')
-      root.style.setProperty('--panel-bg', '#f5f5f5')
-      root.style.setProperty('--text-color', '#1f2937')
-      root.classList.add('light-theme')
-      break
-    case 'nature':
-      root.style.setProperty('--board-bg', '#c7d9a8')
-      root.style.setProperty('--board-line', '#6b8c3a')
-      root.style.setProperty('--panel-bg', '#f0f4e8')
-      root.style.setProperty('--text-color', '#2d5016')
-      root.classList.add('nature-theme')
-      break
-    case 'traditional':
-      root.style.setProperty('--board-bg', '#d4a574')
-      root.style.setProperty('--board-line', '#8b6f47')
-      root.style.setProperty('--panel-bg', '#2c1810')
-      root.style.setProperty('--text-color', '#f0e6d2')
-      root.classList.add('traditional-theme')
-      break
-    case 'highcontrast':
-      root.style.setProperty('--board-bg', '#ffff00')
-      root.style.setProperty('--board-line', '#000000')
-      root.style.setProperty('--panel-bg', '#000000')
-      root.style.setProperty('--text-color', '#ffff00')
-      root.classList.add('highcontrast-theme')
-      break
-    default: // 'dark'
-      root.style.setProperty('--board-bg', '#e6cfa7')
-      root.style.setProperty('--board-line', '#111827')
-      root.style.setProperty('--panel-bg', '#0b1221')
-      root.style.setProperty('--text-color', '#e5e7eb')
-  }
+  // Single style only: always apply the traditional theme tokens.
+  root.classList.remove('light-theme', 'nature-theme', 'traditional-theme', 'highcontrast-theme', 'ink-theme')
+  root.style.setProperty('--board-bg', '#d4a574')
+  root.style.setProperty('--board-line', '#8b6f47')
+  root.style.setProperty('--panel-bg', '#2c1810')
+  root.style.setProperty('--text-color', '#f0e6d2')
+  root.classList.add('traditional-theme')
 }
 
 // Initialize or get player record
@@ -421,27 +413,54 @@ function checkWin(board: Player[][], r: number, c: number): Array<{ r: number; c
   ] as const
   
   for (const [dr, dc] of dirs) {
-    let winningPieces = [{ r, c }]
-    
-    // Check forward
-    let x = r + dr
-    let y = c + dc
+    // Count backward
+    let backCount = 0
+    let x = r - dr
+    let y = c - dc
     while (x >= 0 && x < boardSize && y >= 0 && y < boardSize && board[x][y] === player) {
-      winningPieces.push({ r: x, c: y })
-      x += dr
-      y += dc
-    }
-    
-    // Check backward
-    x = r - dr
-    y = c - dc
-    while (x >= 0 && x < boardSize && y >= 0 && y < boardSize && board[x][y] === player) {
-      winningPieces.unshift({ r: x, c: y })
+      backCount++
       x -= dr
       y -= dc
     }
     
-    if (winningPieces.length >= 5) {
+    // Count forward
+    let forwardCount = 0
+    x = r + dr
+    y = c + dc
+    while (x >= 0 && x < boardSize && y >= 0 && y < boardSize && board[x][y] === player) {
+      forwardCount++
+      x += dr
+      y += dc
+    }
+    
+    const totalCount = 1 + backCount + forwardCount
+    
+    if (totalCount >= 5) {
+      // Collect the winning pieces
+      const winningPieces: Array<{ r: number; c: number }> = []
+      
+      // Add backward pieces
+      x = r - dr
+      y = c - dc
+      for (let i = 0; i < backCount; i++) {
+        winningPieces.unshift({ r: x, c: y })
+        x -= dr
+        y -= dc
+      }
+      
+      // Add center piece
+      winningPieces.push({ r, c })
+      
+      // Add forward pieces
+      x = r + dr
+      y = c + dc
+      for (let i = 0; i < forwardCount; i++) {
+        winningPieces.push({ r: x, c: y })
+        x += dr
+        y += dc
+      }
+      
+      // Return first 5 consecutive pieces
       return winningPieces.slice(0, 5)
     }
   }
@@ -572,13 +591,16 @@ class FireworksOverlay {
 
 class PixiBoardRenderer {
   private app: Application
-  private boardLayer: Graphics
+  private panelLayer: Graphics
+  private boardBgSprite: Sprite
+  private gridLayer: Graphics
   private pieceLayer: Container
   private overlayLayer: Container
   private hoverLayer: Graphics
   private lastMoveLayer: Graphics
   private winningLayer: Graphics
   private pieceTextures: Record<1 | 2, Texture>
+  private boardBgTexture: Texture | null
   private pieceSprites: Map<string, Sprite>
   private animatingPieces: Map<string, number>
   private winAnimationTime: number
@@ -597,7 +619,9 @@ class PixiBoardRenderer {
       autoDensity: false,
     })
 
-    this.boardLayer = new Graphics()
+    this.panelLayer = new Graphics()
+    this.boardBgSprite = new Sprite(Texture.EMPTY)
+    this.gridLayer = new Graphics()
     this.pieceLayer = new Container()
     this.overlayLayer = new Container()
     this.hoverLayer = new Graphics()
@@ -605,7 +629,7 @@ class PixiBoardRenderer {
     this.winningLayer = new Graphics()
 
     this.overlayLayer.addChild(this.hoverLayer, this.lastMoveLayer, this.winningLayer)
-    this.app.stage.addChild(this.boardLayer, this.pieceLayer, this.overlayLayer)
+    this.app.stage.addChild(this.panelLayer, this.boardBgSprite, this.gridLayer, this.pieceLayer, this.overlayLayer)
 
     this.pieceSprites = new Map()
     this.animatingPieces = new Map()
@@ -613,6 +637,7 @@ class PixiBoardRenderer {
     this.hover = null
     this.winAnimationTime = 0
     this.colors = getThemeColors()
+    this.boardBgTexture = null
 
     this.pieceTextures = {
       1: this.buildPieceTexture(0x1a252f, 0x0f1419),
@@ -625,6 +650,7 @@ class PixiBoardRenderer {
 
   updateTheme() {
     this.colors = getThemeColors()
+    this.rebuildPieceTextures()
     this.drawBoardBase()
   }
 
@@ -654,25 +680,52 @@ class PixiBoardRenderer {
 
   private drawBoardBase() {
     const { boardBg, boardLine, panelBg } = this.colors
-    this.boardLayer.clear()
-    this.boardLayer.beginFill(hexToNumber(panelBg))
-    this.boardLayer.drawRect(0, 0, width, height)
-    this.boardLayer.endFill()
+    this.panelLayer.clear()
+    this.panelLayer.beginFill(hexToNumber(panelBg))
+    this.panelLayer.drawRect(0, 0, width, height)
+    this.panelLayer.endFill()
 
-    this.boardLayer.lineStyle({ width: 3, color: hexToNumber(boardLine) })
-    this.boardLayer.beginFill(hexToNumber(boardBg))
-    this.boardLayer.drawRect(margin, margin, boardSize * grid, boardSize * grid)
-    this.boardLayer.endFill()
+    // Board background: solid by default; textured for traditional theme.
+    const boardPx = boardSize * grid
+    const useTexturedBoard = settings.theme === 'traditional'
 
-    this.boardLayer.lineStyle({ width: 2, color: hexToNumber(boardLine) })
+    if (useTexturedBoard) {
+      const nextTexture = this.buildBoardTexture(boardPx, boardPx)
+      if (this.boardBgTexture) {
+        this.boardBgTexture.destroy(true)
+      }
+      this.boardBgTexture = nextTexture
+      this.boardBgSprite.texture = nextTexture
+    } else {
+      // Use a 1x1 texture from a Graphics for solid fill.
+      const g = new Graphics()
+      g.beginFill(hexToNumber(boardBg))
+      g.drawRect(0, 0, 1, 1)
+      g.endFill()
+      const solid = this.app.renderer.generateTexture(g)
+      g.destroy()
+      if (this.boardBgTexture) this.boardBgTexture.destroy(true)
+      this.boardBgTexture = solid
+      this.boardBgSprite.texture = solid
+    }
+
+    this.boardBgSprite.position.set(margin, margin)
+    this.boardBgSprite.width = boardPx
+    this.boardBgSprite.height = boardPx
+
+    this.gridLayer.clear()
+    this.gridLayer.lineStyle({ width: 3, color: hexToNumber(boardLine) })
+    this.gridLayer.drawRect(margin, margin, boardPx, boardPx)
+
+    this.gridLayer.lineStyle({ width: 2, color: hexToNumber(boardLine) })
     for (let i = 0; i < boardSize; i++) {
       const x = margin + i * grid
-      this.boardLayer.moveTo(x, margin)
-      this.boardLayer.lineTo(x, margin + boardSize * grid)
+      this.gridLayer.moveTo(x, margin)
+      this.gridLayer.lineTo(x, margin + boardSize * grid)
 
       const y = margin + i * grid
-      this.boardLayer.moveTo(margin, y)
-      this.boardLayer.lineTo(margin + boardSize * grid, y)
+      this.gridLayer.moveTo(margin, y)
+      this.gridLayer.lineTo(margin + boardSize * grid, y)
     }
 
     const stars = [
@@ -682,89 +735,199 @@ class PixiBoardRenderer {
       [11, 11],
       [7, 7],
     ]
-    this.boardLayer.beginFill(hexToNumber(boardLine))
+    this.gridLayer.beginFill(hexToNumber(boardLine))
     for (const [r, c] of stars) {
       const x = margin + c * grid
       const y = margin + r * grid
-      this.boardLayer.drawCircle(x, y, 5)
+      this.gridLayer.drawCircle(x, y, 5)
     }
-    this.boardLayer.endFill()
+    this.gridLayer.endFill()
   }
 
-  private buildPieceTexture(bodyColor: number, edgeColor: number): Texture {
-    const g = new Graphics()
-    const radius = grid * 0.43 // Slightly larger for better presence
-    const isWhite = bodyColor === 0xffffff
-    const rimColor = edgeColor
+  private rebuildPieceTextures() {
+    const nextTextures: Record<1 | 2, Texture> = {
+      1: this.buildPieceTexture(0x1a252f, 0x0f1419),
+      2: this.buildPieceTexture(0xffffff, 0xd0d0d0),
+    }
+    // Destroy old textures
+    if (this.pieceTextures) {
+      this.pieceTextures[1]?.destroy(true)
+      this.pieceTextures[2]?.destroy(true)
+    }
+    this.pieceTextures = nextTextures
+
+    // Refresh existing sprites
+    if (this.state) {
+      for (let r = 0; r < boardSize; r++) {
+        for (let c = 0; c < boardSize; c++) {
+          const p = this.state.board[r][c]
+          if (p === 0) continue
+          const key = `${r}-${c}`
+          const sprite = this.pieceSprites.get(key)
+          if (sprite) sprite.texture = this.pieceTextures[p as 1 | 2]
+        }
+      }
+    }
+  }
+
+  private buildBoardTexture(w: number, h: number): Texture {
+    // Generate a texture matching public/style.html (Wood color + Noise)
+    const scale = 2
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.floor(w * scale))
+    canvas.height = Math.max(1, Math.floor(h * scale))
+    const ctx = canvas.getContext('2d')!
+
+    // 1. Base Color #E0B870
+    ctx.fillStyle = '#E0B870'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // 2. Noise Effect (Simulating SVG feTurbulence)
+    // We'll use a simple random noise approach
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const data = imageData.data
     
-    // 1. Shadow (Common)
-    g.beginFill(0x000000, 0.3)
-    g.drawCircle(2, 3, radius * 0.95)
-    g.endFill()
+    for (let i = 0; i < data.length; i += 4) {
+        // Random noise value
+        const noise = (Math.random() - 0.5) * 20 // Intensity
+        
+        // Apply to RGB channels
+        data[i] = Math.min(255, Math.max(0, data[i] + noise))     // R
+        data[i+1] = Math.min(255, Math.max(0, data[i+1] + noise)) // G
+        data[i+2] = Math.min(255, Math.max(0, data[i+2] + noise)) // B
+        // Alpha remains unchanged
+    }
+    
+    ctx.putImageData(imageData, 0, 0)
 
-    if (isWhite) {
-      // --- White Piece (Jade/Shell style) ---
-      
-      // Base Body (Warm White)
-      g.beginFill(0xfdfcf5) 
-      g.drawCircle(0, 0, radius)
-      g.endFill()
+    // 3. Optional: Keep the "Panel Lines" but make them very subtle to fit the style
+    // The reference style.html doesn't have panel lines, it's a clean board.
+    // But the user liked the previous "Huanghuali" structure. 
+    // I will keep the panel lines but make them match the new color scheme (subtle darker gold).
+    
+    const panelsX = 4
+    const panelsY = 4
+    const panelW = canvas.width / panelsX
+    const panelH = canvas.height / panelsY
+    
+    ctx.globalAlpha = 0.1
+    ctx.strokeStyle = '#8B5A2B' // Darker wood tone
+    ctx.lineWidth = 1 * scale
+    ctx.beginPath()
+    for (let i = 1; i < panelsX; i++) {
+        ctx.moveTo(i * panelW, 0)
+        ctx.lineTo(i * panelW, canvas.height)
+    }
+    for (let i = 1; i < panelsY; i++) {
+        ctx.moveTo(0, i * panelH)
+        ctx.lineTo(canvas.width, i * panelH)
+    }
+    ctx.stroke()
 
-      // Inner Depth (Warm Grey gradient simulation)
-      g.beginFill(0xdcdcdc, 0.3)
-      g.drawCircle(radius * 0.1, radius * 0.1, radius * 0.85)
-      g.endFill()
-
-      // Subsurface Scattering (Warm center glow)
-      g.beginFill(0xfff8e1, 0.5)
-      g.drawCircle(-radius * 0.1, -radius * 0.1, radius * 0.6)
-      g.endFill()
-
-      // Edge Definition
-      g.lineStyle({ width: 1.2, color: rimColor, alpha: 0.35 })
-      g.drawCircle(0, 0, radius)
-      g.lineStyle({ width: 0 }) // Reset line style
-
-      // Main Highlight (Soft)
-      g.beginFill(0xffffff, 0.6)
-      g.drawEllipse(-radius * 0.3, -radius * 0.35, radius * 0.25, radius * 0.2)
-      g.endFill()
-      
-      // Secondary Highlight (Gloss)
-      g.beginFill(0xffffff, 0.8)
-      g.drawCircle(-radius * 0.35, -radius * 0.4, radius * 0.08)
-      g.endFill()
-
-    } else {
-      // --- Black Piece (Obsidian/Matte style) ---
-
-      // Base Body (Deep Black)
-      g.beginFill(0x0f172a)
-      g.drawCircle(0, 0, radius)
-      g.endFill()
-
-      // Ambient Reflection (Blue-ish tint at bottom)
-      g.beginFill(0x38bdf8, 0.1)
-      g.drawCircle(radius * 0.2, radius * 0.2, radius * 0.7)
-      g.endFill()
-
-      // Edge Rim (Top lighting)
-      g.lineStyle({ width: 1.5, color: rimColor, alpha: 0.22 })
-      g.drawCircle(0, 0, radius - 0.5)
-      g.lineStyle({ width: 0 })
-
-      // Main Highlight (Sharp)
-      g.beginFill(0xffffff, 0.2)
-      g.drawEllipse(-radius * 0.3, -radius * 0.35, radius * 0.2, radius * 0.15)
-      g.endFill()
-
-      // Specular Hotspot
-      g.beginFill(0xffffff, 0.7)
-      g.drawCircle(-radius * 0.35, -radius * 0.4, radius * 0.06)
-      g.endFill()
+    // 4. Optional: Keep the Cloud Border but very subtle
+    ctx.globalAlpha = 0.08
+    ctx.strokeStyle = '#8B5A2B'
+    ctx.lineWidth = 1.5 * scale
+    
+    // Simple cloud motif function (reused)
+    const drawCloud = (cx: number, cy: number, s: number, rotation: number) => {
+      ctx.save()
+      ctx.translate(cx, cy)
+      ctx.rotate(rotation)
+      ctx.beginPath()
+      ctx.moveTo(-2 * s, 0)
+      ctx.bezierCurveTo(-1.5 * s, -1.5 * s, 0, -1.5 * s, 0, 0)
+      ctx.bezierCurveTo(0.5 * s, -1 * s, 1.5 * s, -1 * s, 2 * s, 0)
+      ctx.bezierCurveTo(1.5 * s, 1 * s, 0.5 * s, 1 * s, 0, 0)
+      ctx.bezierCurveTo(0, 1.5 * s, -1.5 * s, 1.5 * s, -2 * s, 0)
+      ctx.stroke()
+      ctx.restore()
     }
 
-    return this.app.renderer.generateTexture(g)
+    const borderSize = canvas.width * 0.1
+    const motifsPerSide = 6
+    
+    // Draw border motifs
+    for (let i = 0; i < motifsPerSide; i++) {
+        const x = (canvas.width / motifsPerSide) * (i + 0.5)
+        if (Math.random() > 0.5) drawCloud(x, borderSize * Math.random() * 0.5, (10 + Math.random() * 10) * scale, Math.random() * 0.5)
+        if (Math.random() > 0.5) drawCloud(x, canvas.height - borderSize * Math.random() * 0.5, (10 + Math.random() * 10) * scale, Math.PI + Math.random() * 0.5)
+    }
+    for (let i = 0; i < motifsPerSide; i++) {
+        const y = (canvas.height / motifsPerSide) * (i + 0.5)
+        if (Math.random() > 0.5) drawCloud(borderSize * Math.random() * 0.5, y, (10 + Math.random() * 10) * scale, -Math.PI/2 + Math.random() * 0.5)
+        if (Math.random() > 0.5) drawCloud(canvas.width - borderSize * Math.random() * 0.5, y, (10 + Math.random() * 10) * scale, Math.PI/2 + Math.random() * 0.5)
+    }
+
+    ctx.globalAlpha = 1
+    const tex = Texture.from(canvas)
+    return tex
+  }
+
+  private buildPieceTexture(bodyColor: number, _edgeColor: number): Texture {
+    // Use Canvas to replicate CSS radial gradients from public/style.html
+    const radius = grid * 0.43
+    const size = Math.ceil(radius * 2.5) // Extra space for shadow
+    const center = size / 2
+    
+    const canvas = document.createElement('canvas')
+    canvas.width = size
+    canvas.height = size
+    const ctx = canvas.getContext('2d')!
+    
+    const isWhite = bodyColor === 0xffffff
+    
+    // 1. Shadow
+    // CSS: box-shadow: 2px 2px 4px rgba(0,0,0,0.4) (Black) / 0.3 (White)
+    const shadowOpacity = isWhite ? 0.3 : 0.4
+    ctx.shadowColor = `rgba(0, 0, 0, ${shadowOpacity})`
+    ctx.shadowBlur = 4
+    ctx.shadowOffsetX = 2
+    ctx.shadowOffsetY = 2
+    
+    // Draw shadow base (circle)
+    ctx.fillStyle = 'rgba(0,0,0,1)' // Color doesn't matter much as we'll draw over it, but for shadow it does
+    // Actually, to get just the shadow we draw the shape.
+    // But we want the gradient on top.
+    
+    ctx.beginPath()
+    ctx.arc(center, center, radius, 0, Math.PI * 2)
+    ctx.fill()
+    
+    // Reset shadow for the piece itself so it doesn't double apply or look weird
+    ctx.shadowColor = 'transparent'
+    ctx.shadowBlur = 0
+    ctx.shadowOffsetX = 0
+    ctx.shadowOffsetY = 0
+    
+    // 2. Piece Gradient
+    // CSS Black: radial-gradient(circle at 35% 35%, #666 0%, #000 60%)
+    // CSS White: radial-gradient(circle at 35% 35%, #fff 0%, #ddd 60%, #999 100%)
+    
+    // Gradient center (35% 35%)
+    // In canvas coordinates relative to the circle center:
+    // Top-left is roughly (center - radius * 0.3, center - radius * 0.3)
+    const gradX = center - radius * 0.3
+    const gradY = center - radius * 0.3
+    
+    const grad = ctx.createRadialGradient(gradX, gradY, 0, gradX, gradY, radius * 1.5)
+    
+    if (isWhite) {
+        grad.addColorStop(0, '#ffffff')
+        grad.addColorStop(0.4, '#dddddd') // Adjusted stop to match visual feel of 60%
+        grad.addColorStop(1, '#999999')
+    } else {
+        grad.addColorStop(0, '#666666')
+        grad.addColorStop(0.6, '#000000')
+        grad.addColorStop(1, '#000000')
+    }
+    
+    ctx.fillStyle = grad
+    ctx.beginPath()
+    ctx.arc(center, center, radius, 0, Math.PI * 2)
+    ctx.fill()
+
+    return Texture.from(canvas)
   }
 
   private syncPieces() {
@@ -822,8 +985,18 @@ class PixiBoardRenderer {
     const { r, c } = this.state.lastMove
     const x = margin + c * grid
     const y = margin + r * grid
-    this.lastMoveLayer.lineStyle({ width: 3, color: 0x22d3ee })
-    this.lastMoveLayer.drawCircle(x, y, grid * 0.48)
+    
+    // Shadow (simulated)
+    this.lastMoveLayer.beginFill(0x000000, 0.3)
+    this.lastMoveLayer.drawCircle(x + 1, y + 1, grid * 0.15)
+    this.lastMoveLayer.endFill()
+
+    // White border
+    this.lastMoveLayer.beginFill(0xffffff)
+    this.lastMoveLayer.drawCircle(x, y, grid * 0.15)
+    this.lastMoveLayer.endFill()
+
+    // Red fill
     this.lastMoveLayer.beginFill(0xef4444)
     this.lastMoveLayer.drawCircle(x, y, grid * 0.12)
     this.lastMoveLayer.endFill()
@@ -869,30 +1042,25 @@ class PixiBoardRenderer {
 }
 
 function drawPieceRealistic(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, player: 1 | 2) {
-  // 1. 投影 (Shadow) - 更柔和自然的投影
-  const shadowGradient = ctx.createRadialGradient(x + 3, y + 3, 2, x + 3, y + 3, radius + 2)
-  shadowGradient.addColorStop(0, 'rgba(0, 0, 0, 0.5)')
-  shadowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)')
-  ctx.fillStyle = shadowGradient
-  ctx.beginPath()
-  ctx.arc(x, y, radius, 0, Math.PI * 2)
-  ctx.fill()
+  // Shadow
+  ctx.shadowColor = player === 2 ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.4)'
+  ctx.shadowBlur = 4
+  ctx.shadowOffsetX = 2
+  ctx.shadowOffsetY = 2
   
-  // 2. 主体 (Main Body)
-  const gradient = ctx.createRadialGradient(x - radius/3, y - radius/3, radius/10, x, y, radius)
+  // Gradient
+  const gradX = x - radius * 0.3
+  const gradY = y - radius * 0.3
+  const gradient = ctx.createRadialGradient(gradX, gradY, 0, gradX, gradY, radius * 1.5)
   
-  if (player === 1) {
-    // 黑棋 - 黑曜石质感
-    gradient.addColorStop(0, '#666666')   // 高光点周围
-    gradient.addColorStop(0.2, '#202020') // 过渡
-    gradient.addColorStop(0.5, '#000000') // 主体黑
-    gradient.addColorStop(1, '#000000')   // 边缘
-  } else {
-    // 白棋 - 羊脂白玉质感
-    gradient.addColorStop(0, '#ffffff')   // 高光中心
-    gradient.addColorStop(0.3, '#f0f0f0') // 亮部
-    gradient.addColorStop(0.8, '#dcdcdc') // 暗部
-    gradient.addColorStop(1, '#c0c0c0')   // 边缘阴影
+  if (player === 2) { // White
+    gradient.addColorStop(0, '#ffffff')
+    gradient.addColorStop(0.4, '#dddddd')
+    gradient.addColorStop(1, '#999999')
+  } else { // Black
+    gradient.addColorStop(0, '#666666')
+    gradient.addColorStop(0.6, '#000000')
+    gradient.addColorStop(1, '#000000')
   }
   
   ctx.fillStyle = gradient
@@ -900,30 +1068,170 @@ function drawPieceRealistic(ctx: CanvasRenderingContext2D, x: number, y: number,
   ctx.arc(x, y, radius, 0, Math.PI * 2)
   ctx.fill()
   
-  // 3. 顶部高光 (Specular Highlight) - 增加光泽感
-  const highlightGrad = ctx.createRadialGradient(x - radius/3, y - radius/3, 1, x - radius/3, y - radius/3, radius/2)
-  highlightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.7)')
-  highlightGrad.addColorStop(0.2, 'rgba(255, 255, 255, 0.1)')
-  highlightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)')
-  ctx.fillStyle = highlightGrad
-  ctx.beginPath()
-  ctx.arc(x, y, radius, 0, Math.PI * 2)
-  ctx.fill()
-
-  // 4. 边缘反光 (Rim Light) - 增加体积感
-  if (player === 1) {
-      const rimGrad = ctx.createRadialGradient(x, y, radius - 2, x, y, radius)
-      rimGrad.addColorStop(0, 'rgba(255, 255, 255, 0)')
-      rimGrad.addColorStop(1, 'rgba(255, 255, 255, 0.15)')
-      ctx.fillStyle = rimGrad
-      ctx.beginPath()
-      ctx.arc(x, y, radius, 0, Math.PI * 2)
-      ctx.fill()
-  }
+  // Reset shadow
+  ctx.shadowColor = 'transparent'
+  ctx.shadowBlur = 0
+  ctx.shadowOffsetX = 0
+  ctx.shadowOffsetY = 0
 }
 
 function drawPiece(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, player: 1 | 2) {
   drawPieceRealistic(ctx, x, y, radius, player)
+}
+
+// --- AI Logic ---
+
+function getAIMove(board: Player[][], difficulty: 'easy' | 'medium' | 'hard', player: Player): { r: number, c: number } | null {
+  const emptySpots: { r: number, c: number }[] = []
+  for (let r = 0; r < boardSize; r++) {
+    for (let c = 0; c < boardSize; c++) {
+      if (board[r][c] === 0) {
+        emptySpots.push({ r, c })
+      }
+    }
+  }
+
+  if (emptySpots.length === 0) return null
+
+  // Easy: Random move
+  if (difficulty === 'easy') {
+    return emptySpots[Math.floor(Math.random() * emptySpots.length)]
+  }
+
+  const opponent = player === 1 ? 2 : 1
+
+  // Medium: Block immediate threats or win immediately
+  if (difficulty === 'medium') {
+    // 1. Check for winning move
+    for (const spot of emptySpots) {
+      board[spot.r][spot.c] = player
+      if (checkWin(board, spot.r, spot.c)) {
+        board[spot.r][spot.c] = 0
+        return spot
+      }
+      board[spot.r][spot.c] = 0
+    }
+
+    // 2. Check for blocking opponent win
+    for (const spot of emptySpots) {
+      board[spot.r][spot.c] = opponent
+      if (checkWin(board, spot.r, spot.c)) {
+        board[spot.r][spot.c] = 0
+        return spot
+      }
+      board[spot.r][spot.c] = 0
+    }
+
+    // 3. Otherwise random, but prefer center
+    const center = boardSize / 2
+    emptySpots.sort((a, b) => {
+      const distA = Math.abs(a.r - center) + Math.abs(a.c - center)
+      const distB = Math.abs(b.r - center) + Math.abs(b.c - center)
+      return distA - distB + (Math.random() * 4 - 2)
+    })
+    return emptySpots[0]
+  }
+
+  // Hard: Heuristic Scoring
+  if (difficulty === 'hard') {
+    let bestScore = -Infinity
+    let bestMoves: { r: number, c: number }[] = []
+
+    for (const spot of emptySpots) {
+      const score = evaluatePosition(board, spot.r, spot.c, player)
+      if (score > bestScore) {
+        bestScore = score
+        bestMoves = [spot]
+      } else if (score === bestScore) {
+        bestMoves.push(spot)
+      }
+    }
+    return bestMoves[Math.floor(Math.random() * bestMoves.length)]
+  }
+
+  return emptySpots[0]
+}
+
+function evaluatePosition(board: Player[][], r: number, c: number, player: Player): number {
+  // We need to check 4 directions
+  const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]]
+  let totalScore = 0
+  const opponent = player === 1 ? 2 : 1
+
+  // 1. Attack Score (Value of placing my piece here)
+  board[r][c] = player
+  for (const [dr, dc] of dirs) {
+    totalScore += getLineScore(board, r, c, dr, dc, player)
+  }
+  board[r][c] = 0
+
+  // 2. Defense Score (Value of blocking opponent here)
+  board[r][c] = opponent
+  let defenseScore = 0
+  for (const [dr, dc] of dirs) {
+    defenseScore += getLineScore(board, r, c, dr, dc, opponent)
+  }
+  board[r][c] = 0
+
+  // If opponent has a winning move (Live 4 or 5), blocking is top priority
+  if (defenseScore >= 100000) return 200000 // Must block
+  if (defenseScore >= 10000) return 50000 // Block live 3
+
+  return totalScore + defenseScore * 0.8
+}
+
+function getLineScore(board: Player[][], r: number, c: number, dr: number, dc: number, player: Player): number {
+  let count = 1
+  let openEnds = 0
+  
+  // Check forward
+  let i = 1
+  while (true) {
+    const nr = r + dr * i
+    const nc = c + dc * i
+    if (nr < 0 || nr >= boardSize || nc < 0 || nc >= boardSize) break
+    if (board[nr][nc] === player) {
+      count++
+    } else if (board[nr][nc] === 0) {
+      openEnds++
+      break
+    } else {
+      break
+    }
+    i++
+  }
+
+  // Check backward
+  i = 1
+  while (true) {
+    const nr = r - dr * i
+    const nc = c - dc * i
+    if (nr < 0 || nr >= boardSize || nc < 0 || nc >= boardSize) break
+    if (board[nr][nc] === player) {
+      count++
+    } else if (board[nr][nc] === 0) {
+      openEnds++
+      break
+    } else {
+      break
+    }
+    i++
+  }
+
+  if (count >= 5) return 100000
+  if (count === 4) {
+    if (openEnds === 2) return 10000 // Live 4
+    if (openEnds === 1) return 1000  // Dead 4
+  }
+  if (count === 3) {
+    if (openEnds === 2) return 1000  // Live 3
+    if (openEnds === 1) return 100   // Dead 3
+  }
+  if (count === 2) {
+    if (openEnds === 2) return 100
+    if (openEnds === 1) return 10
+  }
+  return 0
 }
 
 
@@ -951,14 +1259,6 @@ function run() {
               加载游戏
             </button>
             <div class="border-t border-slate-600 my-1"></div>
-            <button id="menu-settings" class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              设置
-            </button>
-            <div class="border-t border-slate-600 my-1"></div>
             <button id="menu-exit" class="flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-slate-700 transition text-left">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -966,40 +1266,6 @@ function run() {
               退出游戏
             </button>
           </nav>
-        </div>
-
-        <!-- Settings Panel -->
-        <div id="settings-panel" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl">
-            <div class="flex items-center justify-between mb-6">
-              <h2 class="text-2xl font-bold text-white">设置</h2>
-              <button id="settings-close" class="p-2 rounded hover:bg-slate-700 transition text-white">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div class="space-y-4">
-              <div>
-                <label class="block text-sm font-semibold text-gray-300 mb-2">音效</label>
-                <div class="flex items-center gap-3">
-                  <input type="checkbox" id="sound-toggle" class="w-4 h-4" checked>
-                  <label for="sound-toggle" class="text-sm text-gray-300">启用落子音效</label>
-                </div>
-              </div>
-              <div>
-                <label class="block text-sm font-semibold text-gray-300 mb-2">主题</label>
-                <select id="theme-select" class="w-full px-3 py-2 bg-slate-700 text-white rounded-lg">
-                  <option value="dark">深色</option>
-                  <option value="light">浅色</option>
-                  <option value="nature">护眼绿</option>
-                  <option value="traditional">中国风</option>
-                  <option value="ink">水墨雅韵</option>
-                  <option value="highcontrast">高对比度</option>
-                </select>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- Load Game Panel -->
@@ -1113,17 +1379,17 @@ function run() {
               <!-- Download Dropdown -->
               <div id="download-dropdown" class="hidden absolute bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 w-56 py-2 menu-dropdown" style="top: 100%; right: 0; margin-top: 4px;">
                 <div class="px-3 py-2 text-xs text-gray-400 border-b border-slate-600">选择平台下载</div>
-                <a href="./downloads/miu-fivechess-mac.dmg" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
+                <a href="./downloads/miu-fivechess-mac.dmg.zip" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
                   <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
                   </svg>
-                  macOS (DMG)
+                  macOS (DMG.ZIP)
                 </a>
-                <a href="./downloads/miu-fivechess-win.exe" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
+                <a href="./downloads/miu-fivechess-win.exe.zip" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
                   <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M3 12V6.75l6-1.32v6.48L3 12zm6.74.08l8.26-.87V5.31l-8.26 1.09v5.68zM3 13l6 .09v6.81l-6-1.09V13zm6.74.09l8.26.91v6.5l-8.26-1.12V13.09z"/>
                   </svg>
-                  Windows (EXE)
+                  Windows (EXE.ZIP)
                 </a>
                 <div class="border-t border-slate-600 my-1"></div>
                 <a href="./downloads/miu-fivechess.ipa" download class="flex items-center gap-3 px-4 py-3 text-white hover:bg-slate-700 transition text-left">
@@ -1147,38 +1413,26 @@ function run() {
         <div class="flex items-center justify-between gap-2 sm:gap-4 mb-6 px-2 sm:px-4">
           <!-- Player 1 -->
           <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-            <div class="relative group flex-shrink-0">
-              <div id="player1-piece" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-lg cursor-pointer bg-slate-800 flex items-center justify-center overflow-hidden">
+            <div class="relative group flex-shrink-0 cursor-pointer" id="player1-avatar-container">
+              <div id="player1-piece" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-lg bg-slate-800 flex items-center justify-center overflow-hidden relative">
                 <canvas width="48" height="48" class="w-full h-full"></canvas>
+                <div class="absolute bottom-0 right-0 bg-slate-700 rounded-tl px-1 text-[10px] text-white opacity-80">▼</div>
               </div>
-              <div class="absolute bottom-0 right-0 bg-cyan-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition cursor-pointer" onclick="document.getElementById('player1-avatar-dropdown-btn').click()">
-                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 19.5a1 1 0 010 2H5a4 4 0 01-4-4V7a4 4 0 014-4h14a4 4 0 014 4v10.5a1 1 0 110-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10.5a2 2 0 002 2h7z" /></svg>
+              <!-- Player 1 Type Dropdown -->
+              <div id="player1-type-dropdown" class="hidden absolute top-full left-0 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 w-32 py-1">
+                 <button class="w-full text-left px-3 py-2 text-sm text-white hover:bg-slate-700" data-type="human">玩家</button>
+                 <button class="w-full text-left px-3 py-2 text-sm text-white hover:bg-slate-700" data-type="ai" data-difficulty="easy">AI (简单)</button>
+                 <button class="w-full text-left px-3 py-2 text-sm text-white hover:bg-slate-700" data-type="ai" data-difficulty="medium">AI (中等)</button>
+                 <button class="w-full text-left px-3 py-2 text-sm text-white hover:bg-slate-700" data-type="ai" data-difficulty="hard">AI (困难)</button>
               </div>
-              <!-- Avatar dropdown -->
-              <div id="player1-avatar-dropdown" class="hidden absolute mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 p-2 grid grid-cols-3 gap-2 w-48 avatar-dropdown" style="top: 100%; left: 50%; transform: translateX(-50%);">
-                <!-- Will be populated with avatar options -->
-              </div>
-              <button id="player1-avatar-dropdown-btn" class="hidden" onclick="toggleAvatarDropdown(1)"></button>
             </div>
             <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <div class="text-xs text-gray-400 whitespace-nowrap">黑棋</div>
-                <svg id="player1-next-indicator" class="w-4 h-4 hidden indicator-light flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <!-- Outer glow -->
-                  <circle cx="12" cy="12" r="11" stroke="#FBBF24" stroke-width="1" opacity="0.3" class="indicator-glow" />
-                  <!-- Light bulb body -->
-                  <circle cx="12" cy="12" r="8" fill="#FBBF24" class="indicator-core" />
-                  <!-- Inner bright core -->
-                  <circle cx="12" cy="12" r="5" fill="#FCD34D" class="indicator-bright" />
-                </svg>
-              </div>
               <div class="relative">
                 <div class="flex gap-1">
                   <input id="player1-name" type="text" class="flex-1 min-w-0 px-2 py-1 bg-slate-700 text-white rounded border border-slate-600 hover:border-slate-500 focus:border-cyan-400 focus:outline-none text-sm font-semibold truncate" placeholder="输入玩家名字" value="西门鸡翅" />
-                  <button id="player1-dropdown-btn" class="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded transition text-xs flex-shrink-0">▼</button>
                 </div>
-                <div id="player1-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
-                  <!-- Options will be populated here -->
+                <!-- Player 1 Name History Dropdown -->
+                <div id="player1-name-dropdown" class="hidden absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 w-full py-1 max-h-40 overflow-y-auto">
                 </div>
               </div>
             </div>
@@ -1191,38 +1445,26 @@ function run() {
           
           <!-- Player 2 -->
           <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 flex-row-reverse">
-            <div class="relative group flex-shrink-0">
-              <div id="player2-piece" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-lg cursor-pointer bg-slate-800 flex items-center justify-center overflow-hidden">
+            <div class="relative group flex-shrink-0 cursor-pointer" id="player2-avatar-container">
+              <div id="player2-piece" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full shadow-lg bg-slate-800 flex items-center justify-center overflow-hidden relative">
                 <canvas width="48" height="48" class="w-full h-full"></canvas>
+                <div class="absolute bottom-0 left-0 bg-slate-700 rounded-tr px-1 text-[10px] text-white opacity-80">▼</div>
               </div>
-              <div class="absolute bottom-0 left-0 bg-cyan-500 rounded-full p-1 opacity-0 group-hover:opacity-100 transition cursor-pointer" onclick="document.getElementById('player2-avatar-dropdown-btn').click()">
-                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 19.5a1 1 0 010 2H5a4 4 0 01-4-4V7a4 4 0 014-4h14a4 4 0 014 4v10.5a1 1 0 110-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10.5a2 2 0 002 2h7z" /></svg>
+              <!-- Player 2 Type Dropdown -->
+              <div id="player2-type-dropdown" class="hidden absolute top-full right-0 mt-2 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 w-32 py-1">
+                 <button class="w-full text-right px-3 py-2 text-sm text-white hover:bg-slate-700" data-type="human">玩家</button>
+                 <button class="w-full text-right px-3 py-2 text-sm text-white hover:bg-slate-700" data-type="ai" data-difficulty="easy">AI (简单)</button>
+                 <button class="w-full text-right px-3 py-2 text-sm text-white hover:bg-slate-700" data-type="ai" data-difficulty="medium">AI (中等)</button>
+                 <button class="w-full text-right px-3 py-2 text-sm text-white hover:bg-slate-700" data-type="ai" data-difficulty="hard">AI (困难)</button>
               </div>
-              <!-- Avatar dropdown -->
-              <div id="player2-avatar-dropdown" class="hidden absolute mt-1 bg-slate-700 border border-slate-600 rounded-lg shadow-xl z-50 p-2 grid grid-cols-3 gap-2 w-48 avatar-dropdown" style="top: 100%; left: 50%; transform: translateX(-50%);">
-                <!-- Will be populated with avatar options -->
-              </div>
-              <button id="player2-avatar-dropdown-btn" class="hidden" onclick="toggleAvatarDropdown(2)"></button>
             </div>
             <div class="flex-1 min-w-0 text-right">
-              <div class="flex items-center justify-end gap-2 mb-1">
-                <svg id="player2-next-indicator" class="w-4 h-4 hidden indicator-light flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <!-- Outer glow -->
-                  <circle cx="12" cy="12" r="11" stroke="#FBBF24" stroke-width="1" opacity="0.3" class="indicator-glow" />
-                  <!-- Light bulb body -->
-                  <circle cx="12" cy="12" r="8" fill="#FBBF24" class="indicator-core" />
-                  <!-- Inner bright core -->
-                  <circle cx="12" cy="12" r="5" fill="#FCD34D" class="indicator-bright" />
-                </svg>
-                <div class="text-xs text-gray-400 whitespace-nowrap">白棋</div>
-              </div>
               <div class="relative">
                 <div class="flex gap-1 flex-row-reverse">
                   <input id="player2-name" type="text" class="flex-1 min-w-0 px-2 py-1 bg-slate-700 text-white rounded border border-slate-600 hover:border-slate-500 focus:border-cyan-400 focus:outline-none text-sm font-semibold text-right truncate" placeholder="输入玩家名字" value="孤独牛排" />
-                  <button id="player2-dropdown-btn" class="px-2 py-1 bg-slate-600 hover:bg-slate-500 text-white rounded transition text-xs flex-shrink-0">▼</button>
                 </div>
-                <div id="player2-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-700 border border-slate-600 rounded shadow-lg z-10 max-h-48 overflow-y-auto">
-                  <!-- Options will be populated here -->
+                <!-- Player 2 Name History Dropdown -->
+                <div id="player2-name-dropdown" class="hidden absolute top-full right-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-50 w-full py-1 max-h-40 overflow-y-auto">
                 </div>
               </div>
             </div>
@@ -1267,6 +1509,401 @@ function run() {
   loadSettings()
   pixiRenderer.updateTheme()
 
+  // Helper to update input state based on player type
+  function updatePlayerInputState(playerId: 1 | 2) {
+      const AI_NAME = 'GomokuAI'
+      const type = playerId === 1 ? settings.player1Type : settings.player2Type
+      const input = document.querySelector<HTMLInputElement>(`#player${playerId}-name`)
+      
+      if (!input) return
+
+      if (type === 'ai') {
+          // Save current name if it's not AI name
+          const currentName = input.value
+        if (currentName !== AI_NAME && currentName !== 'AI' && currentName !== 'Gomoku AI') {
+              if (playerId === 1) settings.lastHumanPlayer1Name = currentName
+              else settings.lastHumanPlayer2Name = currentName
+          }
+          
+        input.value = AI_NAME
+          input.disabled = true
+          input.classList.add('opacity-50', 'cursor-not-allowed')
+          
+        if (playerId === 1) settings.player1Name = AI_NAME
+        else settings.player2Name = AI_NAME
+      } else {
+          // Restore last human name
+          const lastHumanName = playerId === 1 ? settings.lastHumanPlayer1Name : settings.lastHumanPlayer2Name
+        if (lastHumanName && lastHumanName !== AI_NAME && lastHumanName !== 'AI' && lastHumanName !== 'Gomoku AI') {
+              input.value = lastHumanName
+              if (playerId === 1) settings.player1Name = lastHumanName
+              else settings.player2Name = lastHumanName
+          } else {
+              // Fallback if no history or history is AI name
+              const defaultName = playerId === 1 ? '西门鸡翅' : '孤独牛排'
+              // Check if current value is AI name, if so reset to default
+          if (input.value === AI_NAME || input.value === 'AI' || input.value === 'Gomoku AI') {
+                  input.value = defaultName
+                  if (playerId === 1) settings.player1Name = defaultName
+                  else settings.player2Name = defaultName
+              }
+          }
+          
+          input.disabled = false
+          input.classList.remove('opacity-50', 'cursor-not-allowed')
+      }
+  }
+
+  // Setup Avatar Dropdowns
+  function setupAvatarDropdown(playerId: 1 | 2) {
+      const container = document.querySelector(`#player${playerId}-avatar-container`)
+      const dropdown = document.querySelector(`#player${playerId}-type-dropdown`)
+      
+      if (!container || !dropdown) return
+
+      container.addEventListener('click', (e) => {
+          e.stopPropagation()
+          // Close other dropdowns
+          document.querySelectorAll('[id$="-type-dropdown"]').forEach(el => {
+              if (el !== dropdown) el.classList.add('hidden')
+          })
+          dropdown.classList.toggle('hidden')
+      })
+
+      dropdown.querySelectorAll('button').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+              e.stopPropagation()
+              const type = (e.target as HTMLElement).dataset.type as 'human' | 'ai'
+              const difficulty = (e.target as HTMLElement).dataset.difficulty as 'easy' | 'medium' | 'hard' | undefined
+              
+              if (playerId === 1) {
+                  settings.player1Type = type
+                  if (difficulty) settings.player1Difficulty = difficulty
+              } else {
+                  settings.player2Type = type
+                  if (difficulty) settings.player2Difficulty = difficulty
+              }
+              
+              updatePlayerInputState(playerId)
+              localStorage.setItem('fivechess-settings', JSON.stringify(settings))
+              dropdown.classList.add('hidden')
+              
+              // Close name dropdown as well
+              const nameDropdown = document.querySelector(`#player${playerId}-name-dropdown`)
+              if (nameDropdown) nameDropdown.classList.add('hidden')
+              
+              // If it's currently this player's turn and they just became AI, trigger move
+              if (state.current === playerId && type === 'ai' && !state.winner) {
+                  triggerAI()
+              }
+          })
+      })
+  }
+
+  setupAvatarDropdown(1)
+  setupAvatarDropdown(2)
+  
+  // Initialize inputs based on loaded settings
+  updatePlayerInputState(1)
+  updatePlayerInputState(2)
+
+  // Setup name dropdown functionality
+  function setupNameDropdown(playerId: 1 | 2) {
+      const input = document.querySelector<HTMLInputElement>(`#player${playerId}-name`)!
+      const dropdown = document.querySelector<HTMLDivElement>(`#player${playerId}-name-dropdown`)!
+      let pickingFromDropdown = false
+      const AI_NAME = 'GomokuAI'
+
+      function getDefaultName() {
+        return playerId === 1 ? '西门鸡翅' : '孤独牛排'
+      }
+
+      function setPlayerName(value: string) {
+        input.value = value
+        if (playerId === 1) settings.player1Name = value
+        else settings.player2Name = value
+      }
+
+      function persistSettings() {
+        localStorage.setItem('fivechess-settings', JSON.stringify(settings))
+      }
+
+      function renameHistoryItem(oldName: string, newName: string) {
+        const next = [] as string[]
+        const trimmed = newName.trim()
+        for (const n of settings.nameHistory) {
+          if (!n) continue
+          if (n === oldName) {
+            if (trimmed) next.push(trimmed)
+            continue
+          }
+          if (n === trimmed) continue
+          next.push(n)
+        }
+        settings.nameHistory = next
+      }
+
+      function deleteHistoryItem(name: string) {
+        settings.nameHistory = settings.nameHistory.filter((n) => n !== name)
+      }
+      
+      function showNameDropdown() {
+          const type = playerId === 1 ? settings.player1Type : settings.player2Type
+          // Only show dropdown if player (not AI)
+          if (type === 'ai') return
+          
+          dropdown.innerHTML = ''
+          const filteredNames = settings.nameHistory.filter(
+            (name) =>
+              name &&
+              name.trim() &&
+              name !== AI_NAME &&
+              name !== 'AI' &&
+              name !== 'Gomoku AI'
+          )
+          
+          if (filteredNames.length === 0) {
+              dropdown.innerHTML = '<div class="px-3 py-2 text-xs text-gray-400">无历史记录</div>'
+          } else {
+              filteredNames.forEach(name => {
+                  const row = document.createElement('div')
+                  row.className = 'flex items-center gap-2 px-2'
+
+                  const pickBtn = document.createElement('button')
+                  pickBtn.className = `flex-1 min-w-0 ${playerId === 1 ? 'text-left' : 'text-right'} px-1 py-2 text-sm text-white hover:bg-slate-700 transition rounded`
+                  pickBtn.textContent = name
+
+                  // Use pointerdown so selection happens before input blur.
+                  pickBtn.addEventListener('pointerdown', (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      pickingFromDropdown = true
+
+                      setPlayerName(name)
+                      persistSettings()
+                      dropdown.classList.add('hidden')
+
+                      setTimeout(() => {
+                        pickingFromDropdown = false
+                      }, 0)
+                  })
+
+                  const editBtn = document.createElement('button')
+                  editBtn.className = 'flex-shrink-0 p-2 rounded hover:bg-slate-700 transition text-white'
+                  editBtn.title = '修改'
+                  editBtn.setAttribute('aria-label', '修改')
+                  editBtn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4h2M12 6v14m7.121-13.121a3 3 0 010 4.242L9 21l-4 1 1-4 10.121-10.879a3 3 0 014.242 0z" />
+                    </svg>
+                  `
+
+                  editBtn.addEventListener('pointerdown', (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      pickingFromDropdown = true
+
+                      // Inline edit: replace the name area (red box) with an input, keep icons.
+                      const originalName = name
+                      let ignoreNextBlur = false
+                      const editInput = document.createElement('input')
+                      editInput.type = 'text'
+                      editInput.value = originalName
+                      editInput.className = `flex-1 min-w-0 px-2 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:border-cyan-400 focus:outline-none text-sm font-semibold ${playerId === 1 ? '' : 'text-right'}`
+
+                      const cancelBtn = document.createElement('button')
+                      cancelBtn.className = 'flex-shrink-0 p-2 rounded hover:bg-slate-700 transition text-white'
+                      cancelBtn.title = '取消'
+                      cancelBtn.setAttribute('aria-label', '取消')
+                      cancelBtn.innerHTML = `
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      `
+
+                      const restoreRow = () => {
+                        // Re-render the dropdown to restore default row UI.
+                        showNameDropdown()
+                      }
+
+                      const commitRename = () => {
+                        ignoreNextBlur = true
+                        const nextName = editInput.value.trim()
+                        if (!nextName || nextName === AI_NAME || nextName === 'AI' || nextName === 'Gomoku AI') {
+                          restoreRow()
+                          return
+                        }
+
+                        renameHistoryItem(originalName, nextName)
+
+                        // If this name is currently used, keep UI consistent.
+                        if (input.value === originalName) {
+                          setPlayerName(nextName)
+                        }
+
+                        if (playerId === 1) {
+                          if (settings.lastHumanPlayer1Name === originalName) settings.lastHumanPlayer1Name = nextName
+                        } else {
+                          if (settings.lastHumanPlayer2Name === originalName) settings.lastHumanPlayer2Name = nextName
+                        }
+
+                        persistSettings()
+                        restoreRow()
+                      }
+
+                      // Swap the name button with input.
+                      row.replaceChild(editInput, pickBtn)
+
+                      // Turn the pencil into a confirm button.
+                      editBtn.title = '确认'
+                      editBtn.setAttribute('aria-label', '确认')
+                      editBtn.innerHTML = `
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                      `
+
+                      // Insert cancel button next to confirm.
+                      row.insertBefore(cancelBtn, deleteBtn)
+
+                      const confirmHandler = (ev: Event) => {
+                        ev.preventDefault()
+                        ev.stopPropagation()
+                        ignoreNextBlur = true
+                        commitRename()
+                      }
+
+                      const cancelHandler = (ev: Event) => {
+                        ev.preventDefault()
+                        ev.stopPropagation()
+                        ignoreNextBlur = true
+                        restoreRow()
+                      }
+
+                      editBtn.addEventListener('pointerdown', confirmHandler, { once: true })
+                      cancelBtn.addEventListener('pointerdown', cancelHandler)
+
+                      editInput.addEventListener('keydown', (ev) => {
+                        if (ev.key === 'Enter') {
+                          ev.preventDefault()
+                          ignoreNextBlur = true
+                          commitRename()
+                        } else if (ev.key === 'Escape') {
+                          ev.preventDefault()
+                          ignoreNextBlur = true
+                          restoreRow()
+                        }
+                      })
+
+                      editInput.addEventListener('blur', () => {
+                        // Do NOT auto-confirm when the user just clicks the input.
+                        // Losing focus is treated as cancel unless an explicit confirm/cancel happened.
+                        if (!ignoreNextBlur) restoreRow()
+                      })
+
+                      // Prevent outside click handler closing while interacting with the editor.
+                      editInput.addEventListener('pointerdown', (ev) => {
+                        ev.stopPropagation()
+                      })
+
+                      editInput.focus()
+                      editInput.select()
+
+                      setTimeout(() => {
+                        pickingFromDropdown = false
+                      }, 0)
+                  })
+
+                  const deleteBtn = document.createElement('button')
+                  deleteBtn.className = 'flex-shrink-0 p-2 rounded hover:bg-slate-700 transition text-white'
+                  deleteBtn.title = '删除'
+                  deleteBtn.setAttribute('aria-label', '删除')
+                  deleteBtn.innerHTML = `
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7h6m2 0H7m2 0V5a2 2 0 012-2h2a2 2 0 012 2v2" />
+                    </svg>
+                  `
+
+                  deleteBtn.addEventListener('pointerdown', (e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      pickingFromDropdown = true
+
+                      deleteHistoryItem(name)
+
+                      // If deleting currently used name, fall back to default name.
+                      const type = playerId === 1 ? settings.player1Type : settings.player2Type
+                      if (type !== 'ai' && input.value === name) {
+                        const fallback = getDefaultName()
+                        setPlayerName(fallback)
+                        if (playerId === 1) settings.lastHumanPlayer1Name = fallback
+                        else settings.lastHumanPlayer2Name = fallback
+                      }
+
+                      persistSettings()
+                      showNameDropdown()
+
+                      setTimeout(() => {
+                        pickingFromDropdown = false
+                      }, 0)
+                  })
+
+                  row.appendChild(pickBtn)
+                  row.appendChild(editBtn)
+                  row.appendChild(deleteBtn)
+                  dropdown.appendChild(row)
+              })
+          }
+          
+          dropdown.classList.remove('hidden')
+      }
+      
+      input.addEventListener('click', (e) => {
+          e.stopPropagation()
+          // Close other dropdowns
+          document.querySelectorAll('[id$="-name-dropdown"], [id$="-type-dropdown"]').forEach(el => {
+              if (el !== dropdown) el.classList.add('hidden')
+          })
+          showNameDropdown()
+      })
+      
+      input.addEventListener('blur', () => {
+          // Save the name when input loses focus.
+          // Delay hiding a bit to avoid killing a click on the dropdown.
+          const value = input.value.trim()
+            if (!pickingFromDropdown && value && value !== AI_NAME && value !== 'AI' && value !== 'Gomoku AI') {
+            if (playerId === 1) {
+              settings.player1Name = value
+              if (!settings.nameHistory.includes(value)) settings.nameHistory.unshift(value)
+            } else {
+              settings.player2Name = value
+              if (!settings.nameHistory.includes(value)) settings.nameHistory.unshift(value)
+            }
+              persistSettings()
+          }
+          setTimeout(() => {
+          dropdown.classList.add('hidden')
+          }, 0)
+      })
+      
+      input.addEventListener('input', () => {
+          const type = playerId === 1 ? settings.player1Type : settings.player2Type
+          // Update the player name in real-time
+          if (type !== 'ai') {
+              if (playerId === 1) settings.player1Name = input.value
+              else settings.player2Name = input.value
+          }
+      })
+  }
+  
+  setupNameDropdown(1)
+  setupNameDropdown(2)
+
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', () => {
+      document.querySelectorAll('[id$="-type-dropdown"], [id$="-name-dropdown"]').forEach(el => el.classList.add('hidden'))
+  })
+
   // Load from localStorage
   const saved = localStorage.getItem('fivechess-state')
   if (saved) {
@@ -1297,40 +1934,9 @@ function run() {
     ctx1.clearRect(0, 0, 48, 48)
     ctx2.clearRect(0, 0, 48, 48)
     
-    // Helper function to display avatar as img or draw piece on canvas
-    const displayAvatar = (container: HTMLDivElement, canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, avatarSrc: string | null, playerNum: 1 | 2) => {
-      // Remove any existing img elements
-      const existingImg = container.querySelector('img')
-      if (existingImg) {
-        existingImg.remove()
-      }
-      
-      if (avatarSrc) {
-        // Hide canvas and show image
-        canvas.style.display = 'none'
-        const img = document.createElement('img')
-        img.src = avatarSrc
-        img.className = 'w-full h-full object-cover'
-        img.alt = `Player ${playerNum} avatar`
-        img.onerror = () => {
-          // Fallback to drawing piece on canvas if image fails
-          img.remove()
-          canvas.style.display = 'block'
-          drawPiece(ctx, 24, 24, 20, playerNum)
-        }
-        container.appendChild(img)
-      } else {
-        // Show canvas and draw piece
-        canvas.style.display = 'block'
-        drawPiece(ctx, 24, 24, 20, playerNum)
-      }
-    }
-    
-    // Display player 1 avatar or piece
-    displayAvatar(p1Container, p1Canvas, ctx1, settings.player1Avatar, 1)
-    
-    // Display player 2 avatar or piece
-    displayAvatar(p2Container, p2Canvas, ctx2, settings.player2Avatar, 2)
+    // Draw pieces
+    drawPiece(ctx1, 24, 24, 20, 1)
+    drawPiece(ctx2, 24, 24, 20, 2)
   }
 
   function refreshBoard() {
@@ -1466,11 +2072,20 @@ function run() {
   // Canvas click handler with animation
   function handlePlace(evt: MouseEvent) {
     if (state.winner) return
+    
+    // Check if current player is AI
+    const isAI = state.current === 1 ? settings.player1Type === 'ai' : settings.player2Type === 'ai'
+    if (isAI) return
+
     const pos = getGridPosition(evt)
     if (!pos) return
     const { r: row, c: col } = pos
     if (state.board[row][col] !== 0) return
 
+    executeMove(row, col)
+  }
+
+  function executeMove(row: number, col: number) {
     // Save to history for undo
     state.history.push({
       board: state.board.map(row => [...row]),
@@ -1500,32 +2115,35 @@ function run() {
       }, 400)
     } else {
       state.current = state.current === 1 ? 2 : 1
+      triggerAI()
     }
     localStorage.setItem('fivechess-state', JSON.stringify(state))
     refreshBoard()
   }
 
-  // Update next player indicator
-  function updateNextPlayerIndicator() {
-    const player1Indicator = document.querySelector<HTMLDivElement>('#player1-next-indicator')
-    const player2Indicator = document.querySelector<HTMLDivElement>('#player2-next-indicator')
-    
-    if (!player1Indicator || !player2Indicator) return
-    
-    if (state.winner) {
-      // Hide both indicators when game is over
-      player1Indicator.classList.add('hidden')
-      player2Indicator.classList.add('hidden')
-    } else {
-      // Show indicator for current player
-      if (state.current === 1) {
-        player1Indicator.classList.remove('hidden')
-        player2Indicator.classList.add('hidden')
-      } else {
-        player1Indicator.classList.add('hidden')
-        player2Indicator.classList.remove('hidden')
+  function triggerAI() {
+      if (state.winner) return
+      
+      const isAI = state.current === 1 ? settings.player1Type === 'ai' : settings.player2Type === 'ai'
+      if (isAI) {
+          const difficulty = state.current === 1 ? settings.player1Difficulty : settings.player2Difficulty
+          setTimeout(() => {
+              // Double check state hasn't changed (e.g. reset)
+              if (state.winner) return
+              const currentIsAI = state.current === 1 ? settings.player1Type === 'ai' : settings.player2Type === 'ai'
+              if (!currentIsAI) return
+
+              const move = getAIMove(state.board, difficulty, state.current)
+              if (move) {
+                  executeMove(move.r, move.c)
+              }
+          }, 500)
       }
-    }
+  }
+
+  // Update next player indicator - Removed as requested
+  function updateNextPlayerIndicator() {
+     // No-op
   }
 
   // Menu item handlers
@@ -1573,11 +2191,6 @@ function run() {
   document.querySelector('#menu-load')?.addEventListener('click', () => {
     toggleMenu()
     showLoadPanel()
-  })
-
-  document.querySelector('#menu-settings')?.addEventListener('click', () => {
-    toggleMenu()
-    showSettingsPanel()
   })
 
   // Top bar undo button handler
@@ -1640,36 +2253,6 @@ function run() {
     panel.classList.add('hidden')
     toggleMenu()
   })
-
-  function showSettingsPanel() {
-    const panel = document.querySelector<HTMLDivElement>('#settings-panel')!
-    const soundToggle = document.querySelector<HTMLInputElement>('#sound-toggle')!
-    const themeSelect = document.querySelector<HTMLSelectElement>('#theme-select')!
-    
-    soundToggle.checked = settings.soundEnabled
-    themeSelect.value = settings.theme
-    
-    soundToggle.onchange = () => {
-      settings.soundEnabled = soundToggle.checked
-      localStorage.setItem('fivechess-settings', JSON.stringify(settings))
-    }
-    
-    themeSelect.onchange = () => {
-      settings.theme = themeSelect.value as 'dark' | 'light' | 'nature' | 'traditional' | 'highcontrast' | 'ink'
-      localStorage.setItem('fivechess-settings', JSON.stringify(settings))
-      applyTheme()
-      pixiRenderer?.updateTheme()
-      refreshBoard()
-    }
-    
-    panel.classList.remove('hidden')
-    const closeBtn = document.querySelector<HTMLButtonElement>('#settings-close')
-    if (closeBtn) {
-      closeBtn.onclick = () => {
-        panel.classList.add('hidden')
-      }
-    }
-  }
 
   function showLoadPanel() {
     const panel = document.querySelector<HTMLDivElement>('#load-panel')!
@@ -2029,148 +2612,6 @@ function run() {
     closeDropdown(1)
     closeDropdown(2)
   })
-  
-  // Cartoon avatars - using image files for better compatibility
-  const cartoonAvatars: { name: string; src: string; isChessPiece?: boolean }[] = [
-    {
-      name: '黑棋子',
-      src: new URL('../public/avatars/black-piece.svg', import.meta.url).href,
-      isChessPiece: true
-    },
-    {
-      name: '白棋子',
-      src: new URL('../public/avatars/white-piece.svg', import.meta.url).href,
-      isChessPiece: true
-    },
-    {
-      name: '朱迪·兔',
-      src: new URL('../public/avatars/judy.svg', import.meta.url).href
-    },
-    {
-      name: '尼克·狐',
-      src: new URL('../public/avatars/nick.svg', import.meta.url).href
-    },
-    {
-      name: '闪电·树懒',
-      src: new URL('../public/avatars/flash.svg', import.meta.url).href
-    },
-    {
-      name: '牛局长',
-      src: new URL('../public/avatars/bogo.svg', import.meta.url).href
-    },
-    {
-      name: '绵羊副市长',
-      src: new URL('../public/avatars/bellwether.svg', import.meta.url).href
-    }
-  ]
-  
-  // Toggle avatar dropdown
-  function toggleAvatarDropdown(playerNum: 1 | 2) {
-    const dropdownId = playerNum === 1 ? 'player1-avatar-dropdown' : 'player2-avatar-dropdown'
-    const canvasId = playerNum === 1 ? 'player1-piece' : 'player2-piece'
-    const dropdown = document.querySelector<HTMLDivElement>(`#${dropdownId}`)
-    const canvas = document.querySelector<HTMLCanvasElement>(`#${canvasId}`)
-    if (!dropdown || !canvas) return
-    
-    const isHidden = dropdown.classList.contains('hidden')
-    // Hide all dropdowns first
-    document.querySelectorAll('[id$="-avatar-dropdown"]').forEach(el => {
-      el.classList.add('hidden')
-    })
-    
-    if (isHidden) {
-      dropdown.classList.remove('hidden')
-      
-      // Smart positioning: ensure dropdown stays within viewport
-      requestAnimationFrame(() => {
-        const canvasRect = canvas.getBoundingClientRect()
-        const dropdownRect = dropdown.getBoundingClientRect()
-        const viewportWidth = window.innerWidth
-        
-        // Reset transform first
-        dropdown.style.transform = 'translateX(-50%)'
-        dropdown.style.left = '50%'
-        
-        // Check if dropdown exceeds left edge
-        const dropdownLeft = canvasRect.left + (canvasRect.width / 2) - (dropdownRect.width / 2)
-        if (dropdownLeft < 8) {
-          // Align to left edge of canvas with padding
-          dropdown.style.transform = 'none'
-          dropdown.style.left = '0'
-        }
-        
-        // Check if dropdown exceeds right edge
-        const dropdownRight = canvasRect.left + (canvasRect.width / 2) + (dropdownRect.width / 2)
-        if (dropdownRight > viewportWidth - 8) {
-          // Align to right edge of canvas
-          dropdown.style.transform = 'none'
-          dropdown.style.left = 'auto'
-          dropdown.style.right = '0'
-        }
-      })
-      
-      // Populate avatar options
-      if (dropdown.children.length === 0) {
-        cartoonAvatars.forEach((avatar, index) => {
-          const option = document.createElement('div')
-          option.className = 'cursor-pointer p-2 rounded hover:bg-slate-600 transition flex items-center justify-center'
-          option.style.width = '60px'
-          option.style.height = '60px'
-          option.title = avatar.name
-          
-          // Create image element for the avatar
-          const img = document.createElement('img')
-          img.src = avatar.src
-          img.width = 48
-          img.height = 48
-          img.alt = avatar.name
-          img.className = 'rounded-full'
-          img.style.objectFit = 'cover'
-          
-          option.appendChild(img)
-          option.onclick = () => selectAvatar(playerNum, index)
-          dropdown.appendChild(option)
-        })
-      }
-    }
-  }
-  
-  // Make functions globally accessible for HTML onclick handlers
-  ;(globalThis as any).toggleAvatarDropdown = toggleAvatarDropdown
-  
-  // Select avatar
-  function selectAvatar(playerNum: 1 | 2, avatarIndex: number) {
-    const avatar = cartoonAvatars[avatarIndex]
-    const avatarSrc = avatar.src
-    
-    // Keep chess piece selections as explicit avatars so the change is visible
-    if (playerNum === 1) {
-      settings.player1Avatar = avatarSrc
-    } else {
-      settings.player2Avatar = avatarSrc
-    }
-    
-    // Save settings properly (convert Map to Object for JSON serialization)
-    const settingsToSave = {
-      ...settings,
-      playerRecords: Object.fromEntries(settings.playerRecords)
-    }
-    localStorage.setItem('fivechess-settings', JSON.stringify(settingsToSave))
-    
-    // Immediately redraw player pieces
-    drawPlayerPieces()
-    
-    // Close dropdown
-    const dropdownId = playerNum === 1 ? 'player1-avatar-dropdown' : 'player2-avatar-dropdown'
-    const dropdown = document.querySelector<HTMLDivElement>(`#${dropdownId}`)
-    if (dropdown) {
-      dropdown.classList.add('hidden')
-    }
-  }
-  
-  // Make functions globally accessible for HTML onclick handlers
-  ;(globalThis as any).toggleAvatarDropdown = toggleAvatarDropdown
-  ;(globalThis as any).selectAvatar = selectAvatar
   
   // 监听 Electron 窗口关闭事件
   const electronAPI = (window as any).electronAPI

@@ -6,7 +6,7 @@
 
 ### 🌐 Web 版本
 无需下载！直接访问：
-- **在线体验**：[https://fivechess.ruhooai.com/](https://fivechess.ruhooai.com/)
+- **在线体验**：[https://ruhooai.com/fivechess/](https://ruhooai.com/fivechess/)
 - 支持所有现代浏览器（Chrome、Firefox、Safari、Edge）
 
 ### 🖥️ 桌面应用
@@ -106,7 +106,7 @@
 
 - 🌐 官网：[https://ruhooai.com/](https://ruhooai.com/)
 - 💬 GitHub Issues：[报告问题](https://github.com/papachong/web-fivechess/issues)
-- 📧 邮件：contact@ruhooai.com
+- 📧 邮件：papachong@139.com
 
 ---
 
